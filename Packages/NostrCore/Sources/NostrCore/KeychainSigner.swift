@@ -167,6 +167,12 @@ public struct KeychainSigner: EventSigner {
         return try NIP44.decrypt(ciphertext, conversationKey: conversationKey)
     }
 
+    public func encrypt(_ plaintext: String, to peer: PublicKey) async throws -> String {
+        let key = try requireKey()
+        let conversationKey = try NIP44.conversationKey(privateKey: key, peer: peer)
+        return try NIP44.encrypt(plaintext, conversationKey: conversationKey)
+    }
+
     private func requireKey() throws -> PrivateKey {
         guard let key = try loadPrivateKey() else { throw KeychainError.keyNotFound }
         return key

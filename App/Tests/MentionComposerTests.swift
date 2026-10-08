@@ -473,7 +473,7 @@ extension MentionComposerTests {
         #expect(persistence.saves.count == 1)
         #expect(persistence.stored[model.draftKey] != nil)
 
-        model.sendReply(keepingAgents: { _ in true })
+        model.sendReply(keepingAgents: { $0 == agent })
         #expect(model.mentionDraft.text == "@Agent ")
         await drafts.flush()
 

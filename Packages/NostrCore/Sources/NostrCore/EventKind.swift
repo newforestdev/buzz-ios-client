@@ -181,6 +181,8 @@ public struct EventKind: RawRepresentable, Hashable, Sendable, ExpressibleByInte
     public static let agentEngram: EventKind = 30174
     public static let persona: EventKind = 30175
     public static let reminder: EventKind = 30300
+    /// NIP-PL expiring push wake lease, encrypted to the relay executor key.
+    public static let pushLease: EventKind = 30350
 
     /// The relay's per-viewer snapshot of which DMs that viewer currently has hidden
     /// (NIP-DV): one `h` tag per hidden DM, `d` and `p` both the viewer's pubkey.

@@ -46,7 +46,7 @@ struct ComposerCameraTests {
         model.presentCamera()
 
         #expect(!model.isCameraPresented)
-        #expect(model.uploadError == "You can attach 5 pictures at a time.")
+        #expect(model.uploadError == "You can attach 5 items at a time.")
         model.reset()
     }
 

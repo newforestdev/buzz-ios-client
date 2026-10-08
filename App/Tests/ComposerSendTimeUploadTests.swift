@@ -23,7 +23,7 @@ struct ComposerSendTimeUploadTests {
 
         #expect(model.attachments.count == ComposerAttachmentsModel.selectionLimit)
         #expect(model.attachments.first?.localPayload?.filename == "pic-99.png")
-        #expect(model.uploadError == "You can attach up to 5 pictures.")
+        #expect(model.uploadError == "You can attach 5 items at a time.")
     }
 
     @Test("take returns local bytes and clears the composer before upload")

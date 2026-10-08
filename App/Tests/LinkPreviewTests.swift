@@ -46,14 +46,13 @@ struct LinkPreviewTests {
 
     /// Desktop's rule, and the reason for it: `owner/repo` under a link to one line of
     /// one file describes the repository the link is *part of*, not the link.
-    @Test("a link deeper than a repository falls through to an ordinary web card")
+    @Test("a deep GitHub Markdown link opens as a Markdown document")
     func deepGithubLink() throws {
         let preview = try #require(card("https://github.com/o/r/blob/main/README.md"))
 
-        #expect(preview.kind == .web)
-        #expect(preview.provider == nil)
-        #expect(preview.title == "/o/r/blob/main/README.md")
-        #expect(preview.caption == "github.com")
+        #expect(preview.kind == .markdownDocument)
+        #expect(preview.provider == "Markdown")
+        #expect(preview.title == "README.md")
     }
 
     @Test("a pull request path with a non-numeric number is not a pull request")

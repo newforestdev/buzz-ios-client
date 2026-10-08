@@ -153,7 +153,10 @@ struct ChannelListModelTests {
         try await store.markChannelAccess(identity: reader.pubkey, channel: "general", state: .active)
 
         let model = ChannelListModel(store: store, selfPubkey: reader.pubkey)
+        let run = Task { await model.run() }
+        defer { run.cancel() }
 
+        await waitUntil { model.hasLoaded }
         #expect(model.hasLoaded)
         #expect(model.channels.map(\.id) == ["general"])
     }
@@ -235,7 +238,10 @@ struct ChannelDirectorySurfaceTests {
         try await store.markChannelAccess(identity: reader.pubkey, channel: "stale", state: .active)
 
         let model = ChannelListModel(store: store, selfPubkey: reader.pubkey)
+        let run = Task { await model.run() }
+        defer { run.cancel() }
 
+        await waitUntil { model.channels.count == 1 }
         #expect(model.surface == .connecting)
         // Held, because a name still resolves from it…
         #expect(model.channels.map(\.id) == ["stale"])

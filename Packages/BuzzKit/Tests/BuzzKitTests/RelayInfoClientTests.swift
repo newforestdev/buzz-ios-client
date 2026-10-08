@@ -109,6 +109,17 @@ struct RelayInfoClientTests {
         #expect(info.communityIcon == nil)
     }
 
+    @Test func readsAdvertisedPushKindsAndLeaseLimits() async throws {
+        let body = #"{"push":{"origin":"wss://relay.example","keys":[{"id":"current","pubkey":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","current":true}],"app_profiles":[{"id":"buzz-ios-dogfood","transport":"apns"}],"push_kinds":[9,40002,45001,45003],"limitation":{"max_h":50,"max_subscriptions_per_lease":16}}}"#
+        let transport = ScriptedTransport(answers: [(Data(body.utf8), 200)])
+
+        let info = try await Self.client(transport).fetch()
+
+        #expect(info.push?.pushEligibleKinds == [9, 40002, 45001, 45003])
+        #expect(info.push?.maxChannelIDs == 50)
+        #expect(info.push?.maxSubscriptions == 16)
+    }
+
     @Test func aNonSuccessAndAnUnreadableBodyAreDistinguished() async throws {
         let refused = ScriptedTransport(answers: [(Data(), 403)])
         await #expect(throws: RelayInfoError.httpStatus(403)) {

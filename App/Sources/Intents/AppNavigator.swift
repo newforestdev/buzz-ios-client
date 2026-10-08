@@ -3,7 +3,7 @@ import Observation
 /// Anything the app can be asked to navigate to from outside its view tree.
 enum AppTarget: Hashable, Sendable {
     case destination(AppDestination)
-    case conversation(EntityID)
+    case conversation(EntityID, focus: ConversationFocus? = nil, threadRootID: String? = nil)
     case thread(channelID: String, rootID: String)
 }
 

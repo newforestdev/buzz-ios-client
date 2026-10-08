@@ -92,32 +92,32 @@ struct RichTextParserTests {
     @Test("a fenced code block keeps its raw text and language, unparsed")
     func fencedCode() {
         let blocks = RichTextParser.parse("```swift\nlet x = *notBold*\n```")
-        #expect(blocks == [.code("let x = *notBold*", info: CodeFenceInfo(rawInfoString: "swift"))])
+        #expect(blocks == [.code("let x = *notBold*\n", info: CodeFenceInfo(rawInfoString: "swift"))])
     }
 
     @Test("an unterminated fence runs to the end of the message")
     func unterminatedFence() {
         let blocks = RichTextParser.parse("```\ncode line 1\ncode line 2")
-        #expect(blocks == [.code("code line 1\ncode line 2", info: nil)])
+        #expect(blocks == [.code("code line 1\ncode line 2\n", info: nil)])
     }
 
     @Test("a tilde fence produces a code block")
     func tildeFence() {
         let blocks = RichTextParser.parse("~~~swift\nlet x = 1\n~~~")
-        #expect(blocks == [.code("let x = 1", info: CodeFenceInfo(rawInfoString: "swift"))])
+        #expect(blocks == [.code("let x = 1\n", info: CodeFenceInfo(rawInfoString: "swift"))])
     }
 
     @Test("a four-backtick fence can contain a three-backtick fence")
     func longBacktickFence() {
         let blocks = RichTextParser.parse("````markdown\n```\ninside\n```\n````")
         #expect(blocks == [
-            .code("```\ninside\n```", info: CodeFenceInfo(rawInfoString: "markdown"))
+            .code("```\ninside\n```\n", info: CodeFenceInfo(rawInfoString: "markdown"))
         ])
     }
 
     @Test("four-space indented source produces a code block")
     func indentedCode() {
-        #expect(RichTextParser.parse("    let x = 1") == [.code("let x = 1", info: nil)])
+        #expect(RichTextParser.parse("    let x = 1") == [.code("let x = 1\n", info: nil)])
     }
 
     @Test("a > line is a block quote")

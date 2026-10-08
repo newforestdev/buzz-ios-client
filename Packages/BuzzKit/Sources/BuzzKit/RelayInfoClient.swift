@@ -37,10 +37,13 @@ public struct RelayInfo: Equatable, Sendable {
     /// The relay software's repository URL. A constant on Buzz (`nip11.rs:167`), which is
     /// what makes it usable as a check rather than as a description.
     public let software: String?
+    /// A validated discovery view of the relay's optional NIP-PL executor.
+    public let push: RelayPushDescriptor?
 
-    public init(icon: String? = nil, software: String? = nil) {
+    public init(icon: String? = nil, software: String? = nil, push: RelayPushDescriptor? = nil) {
         self.icon = icon
         self.software = software
+        self.push = push
     }
 
     /// The repository every Buzz relay names itself by.
@@ -160,7 +163,7 @@ public struct RelayInfoClient: Sendable {
         guard let wire = try? JSONDecoder().decode(WireRelayInfo.self, from: body) else {
             throw RelayInfoError.unreadableResponse
         }
-        return RelayInfo(icon: wire.icon, software: wire.software)
+        return RelayInfo(icon: wire.icon, software: wire.software, push: wire.push?.validated)
     }
 }
 
@@ -174,4 +177,73 @@ public struct RelayInfoClient: Sendable {
 private struct WireRelayInfo: Decodable {
     let icon: String?
     let software: String?
+    let push: RelayPushDescriptor?
+}
+
+/// The small validated subset of the NIP-PL relay descriptor the iOS client needs.
+public struct RelayPushDescriptor: Decodable, Equatable, Sendable {
+    public struct Key: Decodable, Equatable, Sendable {
+        public let id: String
+        public let pubkey: String
+        public let current: Bool?
+    }
+
+    public struct AppProfile: Decodable, Equatable, Sendable {
+        public let id: String
+        public let transport: String
+    }
+
+    public struct Limitations: Decodable, Equatable, Sendable {
+        public let maxH: Int?
+        public let maxSubscriptionsPerLease: Int?
+        enum CodingKeys: String, CodingKey {
+            case maxH = "max_h"
+            case maxSubscriptionsPerLease = "max_subscriptions_per_lease"
+        }
+    }
+
+    public let origin: String
+    public let endpoint: String?
+    public let keys: [Key]
+    public let appProfiles: [AppProfile]
+    public let pushKinds: [Int]?
+    public let limitations: Limitations?
+
+    enum CodingKeys: String, CodingKey {
+        case origin, endpoint, keys
+        case appProfiles = "app_profiles"
+        case pushKinds = "push_kinds"
+        case limitations = "limitation"
+    }
+
+    /// Invalid descriptors are treated as no push support, per NIP-PL's discovery rule.
+    var validated: Self? {
+        if let endpoint {
+            guard let url = URL(string: endpoint), url.scheme?.lowercased() == "https",
+                  url.path.hasSuffix("/v1/deliveries/apns"), url.user == nil, url.password == nil
+            else { return nil }
+        }
+        guard
+              keys.filter({ $0.current == true }).count == 1,
+              Set(keys.map(\.id)).count == keys.count,
+              appProfiles.filter({ $0.id == "buzz-ios-dogfood" && $0.transport == "apns" }).count == 1,
+              let pushKinds,
+              !pushKinds.isEmpty,
+              pushKinds.count <= 16,
+              Set(pushKinds).count == pushKinds.count,
+              pushKinds.allSatisfy({ $0 >= 0 }),
+              limitations?.maxH.map({ $0 > 0 }) ?? true,
+              limitations?.maxSubscriptionsPerLease.map({ $0 > 0 }) ?? true
+        else { return nil }
+        let current = keys.first(where: { $0.current == true })!
+        guard current.pubkey.count == 64,
+              current.pubkey.allSatisfy({ $0.isHexDigit && !$0.isUppercase })
+        else { return nil }
+        return self
+    }
+
+    public var currentKey: Key? { keys.first(where: { $0.current == true }) }
+    public var pushEligibleKinds: [Int] { pushKinds ?? [] }
+    public var maxChannelIDs: Int { limitations?.maxH ?? 50 }
+    public var maxSubscriptions: Int { limitations?.maxSubscriptionsPerLease ?? 16 }
 }

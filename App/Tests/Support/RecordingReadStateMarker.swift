@@ -5,11 +5,16 @@
 /// itself read, without a live engine.
 actor RecordingReadStateMarker: ReadStateMarking {
     private(set) var upTos: [Int64] = []
+    private(set) var flushCount = 0
 
     /// The frontier of the most recent mark, or `nil` if none yet.
     var lastUpTo: Int64? { upTos.last }
 
     func markRead(channel _: String, upTo: Int64) async {
         upTos.append(upTo)
+    }
+
+    func flushReadMarks() async {
+        flushCount += 1
     }
 }

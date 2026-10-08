@@ -129,15 +129,20 @@ struct ComposerDraftRestoreTests {
         let store = try temp.open()
         let drafts = ComposerDrafts(persistence: StoredComposerDrafts(store: store))
 
-        let model = channelModel("room-1", store: store, drafts: drafts)
+        let sender = try RecordingSender()
+        let model = ChannelTimelineModel(
+            channel: "room-1", store: store, sender: sender, drafts: drafts
+        )
         model.primeIfNeeded()
         model.draft = "about to go"
         await drafts.flush()
         #expect(try store.composerDraft(channel: "room-1", root: nil) != nil)
 
         model.send()
+        await waitUntil { await sender.sent.count == 1 }
         await drafts.flush()
 
+        #expect(model.draft.isEmpty)
         #expect(try store.composerDraft(channel: "room-1", root: nil) == nil)
         let reopened = channelModel("room-1", store: store, drafts: drafts)
         reopened.primeIfNeeded()

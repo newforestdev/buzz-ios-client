@@ -165,6 +165,35 @@ struct SettingsView: View {
                 Toggle("Allow notifications", isOn: notificationsBinding)
                     .font(.hive(.body))
             }
+            Divider()
+            AccountFieldRow(label: "RELAY WAKEUPS") {
+                Toggle("Wake for new messages", isOn: pushNotificationsBinding)
+                    .font(.hive(.body))
+                    .disabled(!environment.settings.notificationsEnabled)
+            }
+            Text("Alerts for mentions and direct messages. Message contents stay on your relay.")
+                .font(.hive(.footnote))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            if let error = PushNotifications.shared.registrationError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.hive(.footnote))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                AccountFieldRow(label: "") {
+                    Button("Try again") {
+                        guard let token = PushNotifications.shared.deviceToken else {
+                            PushNotifications.shared.registerForRemoteNotifications()
+                            return
+                        }
+                        Task { await environment.registerPushToken(token) }
+                    }
+                    .font(.hive(.footnote, weight: .medium))
+                    .foregroundStyle(.hiveAccent)
+                }
+            }
             // Only when iOS is going to ignore the switch above. Without it the screen lies:
             // the toggle reads as on, no alert ever arrives, and nothing connects the two.
             if systemAuthorization == false {
@@ -182,7 +211,31 @@ struct SettingsView: View {
             get: { environment.settings.notificationsEnabled },
             set: { isOn in
                 environment.settings.notificationsEnabled = isOn
+                if !isOn, environment.settings.pushNotificationsEnabled {
+                    environment.settings.pushNotificationsEnabled = false
+                    PushNotifications.shared.disableRemoteRegistration()
+                    Task { await environment.revokePushLease() }
+                }
                 Task { await applyNotificationSwitch(isOn) }
+            }
+        )
+    }
+
+    private var pushNotificationsBinding: Binding<Bool> {
+        Binding(
+            get: { environment.settings.pushNotificationsEnabled },
+            set: { enabled in
+                environment.settings.pushNotificationsEnabled = enabled
+                Task {
+                    if enabled {
+                        let granted = await PushNotifications.shared.requestPermissionAndRegister()
+                        if !granted { environment.settings.pushNotificationsEnabled = false }
+                        await readSystemAuthorization()
+                    } else {
+                        PushNotifications.shared.disableRemoteRegistration()
+                        await environment.revokePushLease()
+                    }
+                }
             }
         )
     }
@@ -213,6 +266,7 @@ struct SettingsView: View {
 
     private func readSystemAuthorization() async {
         systemAuthorization = await ReminderScheduler().isAuthorized()
+        await PushNotifications.shared.refreshAuthorization()
     }
 
     /// Brings the armed alerts in line with the switch that was just thrown.

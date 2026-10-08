@@ -3,6 +3,7 @@ import SwiftUI
 
 @main
 struct HiveApp: App {
+    @UIApplicationDelegateAdaptor(HiveApplicationDelegate.self) private var appDelegate
     /// The composition root, created exactly once and owned by the app. `@State`
     /// (never `@StateObject`) is the iOS 17+ home for an `@Observable`.
     @State private var environment: AppEnvironment
@@ -19,6 +20,25 @@ struct HiveApp: App {
         // is the only place both halves are in scope at once.
         let environment = AppEnvironment()
         _environment = State(initialValue: environment)
+        PushNotifications.shared.onWake = {
+            Task { await environment.retryConnectionAndDirectory() }
+        }
+        environment.reminderAlerts.onRemoteWake = {
+            Task { await environment.retryConnectionAndDirectory() }
+        }
+        environment.reminderAlerts.onRemoteConversation = { channel, community, threadRootID in
+            guard let id = UUID(uuidString: community), UUID(uuidString: channel) != nil else { return }
+            environment.navigator.request(.conversation(
+                EntityID(community: id, native: channel),
+                threadRootID: threadRootID
+            ))
+        }
+        PushNotifications.shared.onToken = { token in
+            Task { await environment.registerPushToken(token) }
+        }
+        DirectMessageRouter.onConversationOpened = { channelID in
+            Task { await environment.refreshPushLease(openedDMChannelID: channelID) }
+        }
         // Registered before any window exists, because an intent that *launches* the app
         // runs its `perform()` as soon as the process is up — earlier than `.task`, earlier
         // than the first `body`. An unregistered `@Dependency` traps when the intent reads
@@ -86,6 +106,22 @@ struct HiveApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             environment.handleScenePhase(phase)
+            guard phase == .active,
+                  environment.settings.pushNotificationsEnabled,
+                  environment.signer != nil,
+                  environment.engine != nil
+            else { return }
+            Task {
+                await PushNotifications.shared.refreshAuthorization()
+                switch PushNotifications.shared.authorization {
+                case .authorized, .provisional, .ephemeral:
+                    // APNs returns its current token, which refreshes the lease before its
+                    // bounded expiry even if this process stayed alive for weeks.
+                    PushNotifications.shared.registerForRemoteNotifications()
+                default:
+                    break
+                }
+            }
         }
     }
 
@@ -132,6 +168,16 @@ struct HiveApp: App {
     private var launch: some View {
         RootView()
             .environment(environment)
-            .task { await environment.bootstrap() }
+            .task {
+                await environment.bootstrap()
+                if environment.settings.pushNotificationsEnabled {
+                    await PushNotifications.shared.refreshAuthorization()
+                    if PushNotifications.shared.authorization == .authorized
+                        || PushNotifications.shared.authorization == .provisional
+                        || PushNotifications.shared.authorization == .ephemeral {
+                        PushNotifications.shared.registerForRemoteNotifications()
+                    }
+                }
+            }
     }
 }

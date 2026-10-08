@@ -10,6 +10,7 @@ IPHONEOS_DEPLOYMENT_TARGET = 26.0
 // with these left blank it built `com.example.hive` for no team, which cannot be
 // signed for distribution and so cannot reach TestFlight.
 PRODUCT_BUNDLE_IDENTIFIER = com.jtvargas.hive
+HIVE_HOST_BUNDLE_IDENTIFIER = com.jtvargas.hive
 DEVELOPMENT_TEAM = J7K9Z79S5F
 CODE_SIGN_STYLE = Automatic
 

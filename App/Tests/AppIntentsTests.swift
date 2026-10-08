@@ -48,7 +48,7 @@ import UIKit
     /// not is a Siri tile with no picture and no error.
     @Test func theCardsStillCarryTheShortcutSymbols() {
         #expect(HomeShortcut.later.symbol == "bookmark")
-        #expect(HomeShortcut.drafts.symbol == "paperplane")
+        #expect(HomeShortcut.drafts.symbol == "long.text.page.and.pencil")
         #expect(UIImage(systemName: "text.append") != nil)
     }
 }

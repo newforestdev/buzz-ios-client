@@ -83,7 +83,7 @@ struct ComposerPasteboardTests {
         model.add(pasted)
 
         #expect(model.attachments.count == ComposerAttachmentsModel.selectionLimit)
-        #expect(model.uploadError == "You can attach 5 pictures at a time.")
+        #expect(model.uploadError == "You can attach 5 items at a time.")
     }
 
     @Test("a pasted picture with no bytes is refused rather than attached")
