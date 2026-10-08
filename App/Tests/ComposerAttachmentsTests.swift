@@ -119,7 +119,7 @@ struct ComposerAttachmentsTests {
         model.add((0 ..< 8).map { _ in Self.item() })
 
         #expect(model.attachments.count == ComposerAttachmentsModel.selectionLimit)
-        #expect(model.uploadError == "You can attach 5 pictures at a time.")
+        #expect(model.uploadError == "You can attach 5 items at a time.")
         #expect(model.remainingCapacity == 0)
     }
 
@@ -133,7 +133,7 @@ struct ComposerAttachmentsTests {
         model.add((0 ..< 3).map { _ in Self.item() })
 
         #expect(model.attachments.count == 5)
-        #expect(model.uploadError == "You can attach 5 pictures at a time.")
+        #expect(model.uploadError == "You can attach 5 items at a time.")
     }
 
     @Test("a composer with room takes everything offered and says nothing")

@@ -18,7 +18,7 @@ struct PresenceModelTests {
         await store.apply([try alice.event(.presence, "online")])
 
         await waitUntil { model.isOnline(alice.pubkey) }
-        #expect(model.online == [alice.pubkey])
+        #expect(model.statuses == [alice.pubkey: .online])
     }
 
     @Test("the typing model reflects channel typers and excludes our own echo")

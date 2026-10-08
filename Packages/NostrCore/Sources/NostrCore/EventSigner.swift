@@ -35,6 +35,11 @@ public protocol EventSigner: Sendable {
     /// read-state blob). Default implementation throws
     /// ``SigningError/selfEncryptionUnsupported``.
     func decryptToSelf(_ ciphertext: String) async throws -> String
+
+    /// NIP-44 encrypts content to another public key. This is used for protocol
+    /// envelopes whose recipient is discovered from the relay's signed/advertised
+    /// executor descriptor rather than the current identity.
+    func encrypt(_ plaintext: String, to peer: PublicKey) async throws -> String
 }
 
 public extension EventSigner {
@@ -53,6 +58,10 @@ public extension EventSigner {
 
     func decryptToSelf(_: String) async throws -> String {
         throw SigningError.selfEncryptionUnsupported
+    }
+
+    func encrypt(_: String, to _: PublicKey) async throws -> String {
+        throw SigningError.encryptionUnsupported
     }
 }
 
@@ -94,6 +103,10 @@ public struct InMemorySigner: EventSigner {
     public func decryptToSelf(_ ciphertext: String) async throws -> String {
         try NIP44.decrypt(ciphertext, conversationKey: NIP44.conversationKey(privateKey: key, peer: key.publicKey))
     }
+
+    public func encrypt(_ plaintext: String, to peer: PublicKey) async throws -> String {
+        try NIP44.encrypt(plaintext, conversationKey: NIP44.conversationKey(privateKey: key, peer: peer))
+    }
 }
 
 /// Errors raised while signing an event.
@@ -105,4 +118,6 @@ public enum SigningError: Error, Equatable {
     /// secret key (a signature-only or scripted signer). Real signers — in-memory
     /// and Keychain-backed — implement the NIP-44 to-self path.
     case selfEncryptionUnsupported
+    /// The signer does not hold the secret required for NIP-44 encryption.
+    case encryptionUnsupported
 }

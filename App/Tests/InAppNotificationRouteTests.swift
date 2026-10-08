@@ -61,13 +61,11 @@ struct InAppNotificationRouteTests {
         #expect(dm.location == .channel("channel-1"))
     }
 
-    @Test("the route aims at the message, carrying the timestamp the walk needs")
-    func routeFocusesTheMessage() {
+    @Test("the route opens the place without searching for the notification message")
+    func routeOpensPlaceWithoutMessageFocus() {
         let notification = InAppNotification(entry: Self.entry(messageID: "message-9", createdAt: 42))
-        // Both halves matter: the id is what is scrolled to and washed, and `sentAt` is what
-        // lets the history walk decide the message is not on this surface without reading to
-        // the beginning of the channel. See ``ConversationFocus``.
-        #expect(notification.route.focus == ConversationFocus(messageID: "message-9", sentAt: 42))
+        #expect(notification.route.location == .channel("channel-1"))
+        #expect(notification.route.focus == nil)
     }
 
     @Test("the location names a place and never a message")
@@ -80,7 +78,8 @@ struct InAppNotificationRouteTests {
         let first = InAppNotification(entry: Self.entry(rootID: "root-1", messageID: "message-1"))
         let second = InAppNotification(entry: Self.entry(rootID: "root-1", messageID: "message-2"))
         #expect(first.location == second.location)
-        #expect(first.route.focus != second.route.focus)
+        #expect(first.route.focus == nil)
+        #expect(second.route.focus == nil)
     }
 
     @Test("a banner is suppressed only by the place it would open")

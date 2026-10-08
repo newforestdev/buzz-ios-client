@@ -71,11 +71,15 @@ extension ChannelListView {
         switch target {
         case .destination:
             return nil
-        case let .conversation(id):
+        case let .conversation(id, focus, threadRootID):
             let named = ConversationEntitySnapshotStore().fallbackRow(id: id)
             return InAppNotificationRoute(
-                location: .channel(id.native),
-                fallbackChannel: conversationRow(for: id.native, in: [], fallback: named)
+                location: threadRootID.map { .thread(channelID: id.native, rootID: $0) }
+                    ?? .channel(id.native),
+                fallbackChannel: conversationRow(for: id.native, in: [], fallback: named),
+                // Notification taps open the place, not a historical message. Search is the
+                // only arrival that asks the timeline to find and highlight a specific row.
+                focus: threadRootID == nil ? focus : nil
             )
         case let .thread(channelID, rootID):
             return InAppNotificationRoute(

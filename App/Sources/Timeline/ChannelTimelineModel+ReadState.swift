@@ -9,6 +9,17 @@ import Foundation
 /// that leaves the device — the NIP-RS frontier is shared with every other client the
 /// account is signed in to, and grow-only.
 extension ChannelTimelineModel {
+    /// Refreshes the rendered head and retries its read mark on every entry. A retained
+    /// navigation destination may have stopped observing while another screen was open;
+    /// an earlier best-effort mark may also have failed before the store applied it.
+    func beginReading() async {
+        lastMarkedReadAt = 0
+        mergeHead(fetch(before: nil))
+        guard let readStateMarking, let newest = rows.last?.createdAt else { return }
+        await readStateMarking.markRead(channel: channel, upTo: newest)
+        await readStateMarking.flushReadMarks()
+    }
+
     /// Marks the channel read up to the newest *rendered* message, once per advance —
     /// mark-on-view. Fires the moment the channel opens and again whenever a newer
     /// message becomes viewable while the view is up; a scroll back through older
@@ -35,16 +46,19 @@ extension ChannelTimelineModel {
         Task { await readStateMarking.markRead(channel: channel, upTo: newest) }
     }
 
-    /// Lands whatever the engine's coalescing window is holding, on the way out of this
-    /// conversation.
+    /// Marks the newest rendered message and publishes the final frontier on the way out.
     ///
     /// The marks above publish a couple of seconds after they stop arriving, which is
     /// invisible from *inside* a channel: nothing on this screen renders read state. The two
     /// surfaces that do — the sidebar's unread count and the Activity feed — are exactly what
     /// leaving reveals, so the flush belongs on the way out. A no-op when the window is
     /// already empty, which it usually is.
-    func flushReadMarks() {
+    func endReading() async {
         guard let readStateMarking else { return }
-        Task { await readStateMarking.flushReadMarks() }
+        if let newest = rows.last?.createdAt {
+            lastMarkedReadAt = max(lastMarkedReadAt, newest)
+            await readStateMarking.markRead(channel: channel, upTo: newest)
+        }
+        await readStateMarking.flushReadMarks()
     }
 }

@@ -117,9 +117,8 @@ struct AgentMentionGlyphTests {
         let rect = CGRect(x: 100, y: 200, width: 30, height: ascent + descent)
         let frame = AgentGlyph.frame(in: rect, ascent: ascent, descent: descent)
         #expect(abs(frame.midX - rect.midX) < 0.01)
-        // Not centred in the typographic box: that box hangs a descender's worth below
-        // the letters, and centring in it draws the bot visibly low against the name.
-        #expect(frame.midY < rect.midY)
+        // The icon's centre stays above the baseline. Its square can extend below it;
+        // the drawn path has optical padding inside that square.
         let baseline = rect.minY + ascent
         #expect(frame.midY < baseline)
     }

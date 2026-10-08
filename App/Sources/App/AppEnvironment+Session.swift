@@ -31,6 +31,24 @@ extension AppEnvironment {
     /// says so: ``removeCommunity(_:)``.
     @discardableResult
     func signOut() async -> SignOutResult {
+        await revokePushLease()
+        settings.pushNotificationsEnabled = false
+        PushNotifications.shared.disableRemoteRegistration()
+        for community in communities.communities where community.id != communities.active?.id {
+            let otherSigner = KeychainSigner(account: community.keychainAccount)
+            let pubkey: String?
+            if let owner = community.ownerPubkeyHex {
+                pubkey = owner
+            } else {
+                pubkey = try? await otherSigner.publicKey().hex
+            }
+            if let pubkey {
+                await PushLeaseCoordinator.shared.revokeGateway(
+                    relayURLString: community.relayURLString,
+                    pubkey: pubkey
+                )
+            }
+        }
         var result = SignOutResult.signedOut
         for community in communities.communities {
             let custody = KeychainSigner(account: community.keychainAccount)

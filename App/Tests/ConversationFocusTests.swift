@@ -86,8 +86,8 @@ struct ConversationFocusTests {
         // so by the time `focus` returns there is nothing left on the surface to read.
         let walk = Task { await model.focus(on: "absent-event", sentAt: 1_060) }
         defer { walk.cancel() }
-        await Self.waitUntil { model.jump.seek == .failed(.notFound) }
-        #expect(model.jump.seek == .failed(.notFound))
+        await Self.waitUntil { model.jump.seek == .failed(.unreachable) }
+        #expect(model.jump.seek == .failed(.unreachable))
     }
 
     // MARK: - Not mistaking a stall for an answer

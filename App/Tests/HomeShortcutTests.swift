@@ -87,10 +87,10 @@ struct HomeShortcutTests {
     @Test("a card with items draws the .fill cut, and the outline when it is empty")
     func symbolFollowsTheCount() {
         // Empty is always the outline.
-        #expect(HomeShortcut.drafts.glyph(hasItems: false) == .symbol("paperplane"))
+        #expect(HomeShortcut.drafts.glyph(hasItems: false) == .symbol("long.text.page.and.pencil"))
         #expect(HomeShortcut.later.glyph(hasItems: false) == .symbol("bookmark"))
         // With items, the filled cut — the second signal beside the card's accent edge.
-        #expect(HomeShortcut.drafts.glyph(hasItems: true) == .symbol("paperplane.fill"))
+        #expect(HomeShortcut.drafts.glyph(hasItems: true) == .symbol("long.text.page.and.pencil.fill"))
         #expect(HomeShortcut.later.glyph(hasItems: true) == .symbol("bookmark.fill"))
         // Threads draws the owner's own artwork, which ships one cut — so it keeps the same
         // drawing either way, exactly as `text.append` did for want of a `.fill` counterpart.

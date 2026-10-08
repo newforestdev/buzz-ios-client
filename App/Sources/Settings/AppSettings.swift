@@ -45,6 +45,13 @@ final class AppSettings {
         didSet { defaults.set(notificationsEnabled, forKey: Key.notificationsEnabled) }
     }
 
+    /// Explicit authorization to create a remote NIP-PL lease for the active community.
+    /// This is separate from the app-wide notification switch (which also controls local
+    /// reminders) and starts off disabled as required by NIP-PL opt-in.
+    var pushNotificationsEnabled: Bool {
+        didSet { defaults.set(pushNotificationsEnabled, forKey: Key.pushNotificationsEnabled) }
+    }
+
     /// Which ``HiveTheme`` the app draws — the ground on every screen, and the accent.
     ///
     /// Stored as the theme's id rather than its index, so re-ordering the catalogue or dropping a
@@ -89,6 +96,7 @@ final class AppSettings {
     /// renamed symbol — nothing in the compiler notices.
     enum Key {
         static let notificationsEnabled = "settings.notifications.enabled"
+        static let pushNotificationsEnabled = "settings.notifications.push.enabled"
         static let themeID = "settings.theme.id"
         static let keepAgentsMentioned = "settings.composer.keepAgentsMentioned"
     }
@@ -100,6 +108,7 @@ final class AppSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         notificationsEnabled = Self.flag(Key.notificationsEnabled, default: true, in: defaults)
+        pushNotificationsEnabled = Self.flag(Key.pushNotificationsEnabled, default: false, in: defaults)
         themeID = defaults.string(forKey: Key.themeID) ?? HiveTheme.hive.id
         keepAgentsMentioned = Self.flag(Key.keepAgentsMentioned, default: false, in: defaults)
         // `didSet` does not fire for a write inside `init`, so the launch value has to be

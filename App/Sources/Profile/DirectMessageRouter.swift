@@ -42,6 +42,9 @@ extension SyncEngine: DirectMessageOpening {}
 @MainActor
 @Observable
 final class DirectMessageRouter {
+    /// App-level hook for lease refresh when a relay opens or creates a DM. The router is
+    /// used by every surface, so this keeps the push channel list current in one place.
+    static var onConversationOpened: (@MainActor @Sendable (String) -> Void)?
     /// The conversation to navigate to, once. Whoever consumes it clears it — leaving it
     /// set would re-push the same conversation on the next unrelated body pass.
     var pendingConversation: OpenedConversation?
@@ -96,6 +99,7 @@ final class DirectMessageRouter {
                 // when the navigation that succeeded landed.
                 failure = nil
                 pendingConversation = OpenedConversation(channelID: channelID, peers: peers)
+                Self.onConversationOpened?(channelID)
             } catch {
                 openingPeers.remove(key)
                 failure = Self.message(for: error)

@@ -5,6 +5,30 @@ import NostrCore
 /// the store's disposition policy, and the coalescing that keeps overlapping drain
 /// requests from stranding a row.
 extension SyncEngine {
+    /// Queues a signed protocol event that is not a channel message. Used by addressable
+    /// client control records such as NIP-PL leases; it still travels through the durable
+    /// outbox so a temporary relay disconnect cannot silently drop the update.
+    @discardableResult
+    public func enqueueProtocolEvent(
+        kind: EventKind,
+        content: String,
+        tags: [[String]] = [],
+        maxContentBytes: Int = 65_536,
+        createdAt: Date? = nil
+    ) async throws -> OutboxEntry {
+        let entry = try await store.enqueue(
+            kind: kind,
+            content: content,
+            in: "",
+            tags: tags,
+            with: signer,
+            maxContentBytes: maxContentBytes,
+            createdAt: createdAt
+        )
+        await drainOutbox()
+        return entry
+    }
+
     /// Signs and queues a message, then drains — the app's send path. The event id
     /// exists the moment it is signed, so the timeline renders the pending send
     /// optimistically and the same row simply changes state on confirmation. The

@@ -366,6 +366,9 @@ extension AppEnvironment {
     func switchCommunity(to id: Community.ID) async {
         await serialisingTransitions { [self] in
             guard id != communities.activeID else { return }
+            await revokePushLease()
+            settings.pushNotificationsEnabled = false
+            PushNotifications.shared.disableRemoteRegistration()
             updateCommunities { $0.setActive(id) }
             guard let community = communities.active, community.id == id else { return }
             RelayEndpoint.storedURLString = community.relayURLString
@@ -402,6 +405,7 @@ extension AppEnvironment {
 
     private func performRemoval(of id: Community.ID) async {
         let wasActive = id == communities.activeID
+        if wasActive { await revokePushLease() }
         var removedCommunity: Community?
         updateCommunities { removedCommunity = $0.remove(id) }
         guard let removed = removedCommunity else { return }

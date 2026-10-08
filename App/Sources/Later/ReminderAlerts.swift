@@ -39,6 +39,9 @@ final class ReminderAlerts {
     /// The id is passed even though today's handler ignores it: it is what "open Later *on
     /// the reminder that came due*" would need, and this is the only place that fact exists.
     var onOpen: ((String) -> Void)?
+    /// Called for a tap on a reconnect-only remote push; reminder routing remains intact.
+    var onRemoteWake: (() -> Void)?
+    var onRemoteConversation: ((String, String, String?) -> Void)?
 
     /// The delegate itself. Held because `UNUserNotificationCenter.delegate` is `weak`, and
     /// a delegate nobody retains stops being one the moment `init` returns.
@@ -46,6 +49,8 @@ final class ReminderAlerts {
 
     init() {
         delegate.onOpen = { [weak self] id in self?.onOpen?(id) }
+        delegate.onRemoteWake = { [weak self] in self?.onRemoteWake?() }
+        delegate.onRemoteConversation = { [weak self] channel, community, focus in self?.onRemoteConversation?(channel, community, focus) }
         UNUserNotificationCenter.current().delegate = delegate
     }
 }
@@ -57,28 +62,49 @@ final class ReminderAlerts {
 private final class Delegate: NSObject, UNUserNotificationCenterDelegate {
     /// Set once, from the main actor, before this delegate is installed.
     var onOpen: (@MainActor @Sendable (String) -> Void)?
+    var onRemoteWake: (@MainActor @Sendable () -> Void)?
+    var onRemoteConversation: (@MainActor @Sendable (String, String, String?) -> Void)?
 
-    /// Shows the alert even while Hive is open.
-    ///
-    /// Without this, iOS silently drops a notification whose app is in the foreground — and
-    /// the foreground is exactly where anyone testing the one-minute preset is standing. A
-    /// reminder is the reader's own request from a few minutes ago, so it is worth a banner
-    /// over the conversation they are reading.
+    /// Keeps local reminders visible while suppressing the system copy of remote messages.
+    /// The live conversation already displays a remote message when Hive is open; showing an
+    /// APNs banner over it duplicates the same response. Background delivery remains unchanged.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
+        if notification.request.trigger is UNPushNotificationTrigger {
+            return []
+        }
+        return [.banner, .sound, .list]
     }
 
     /// The tap. Only the id crosses to the main actor — `UNNotificationResponse` itself
     /// stays here.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
+        // UIKit updates its window snapshot from this completion. The async delegate
+        // bridge completes on a cooperative executor and crashes on iOS 26; explicitly
+        // finish on the main actor, after queuing navigation but before network work.
         let userInfo = response.notification.request.content.userInfo
-        guard let id = userInfo[ReminderScheduler.reminderIDKey] as? String, !id.isEmpty else { return }
-        await onOpen?(id)
+        let channel = userInfo["hive.channel_id"] as? String
+        let community = userInfo["hive.community_id"] as? String
+        let threadRootID = (userInfo["hive.thread_root_id"] as? String).flatMap { id in
+            id.count == 64 && id.allSatisfy(\.isHexDigit) ? id : nil
+        }
+        let reminder = userInfo[ReminderScheduler.reminderIDKey] as? String
+        let isRemote = response.notification.request.trigger is UNPushNotificationTrigger
+        Task { @MainActor [onRemoteWake, onRemoteConversation, onOpen] in
+            if let channel, let community {
+                onRemoteConversation?(channel, community, threadRootID)
+            }
+            if let reminder, !reminder.isEmpty { onOpen?(reminder) }
+            if isRemote {
+                onRemoteWake?()
+            }
+            completionHandler()
+        }
     }
 }

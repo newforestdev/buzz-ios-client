@@ -680,6 +680,8 @@ private extension ChannelListView {
                 focusingComposer: route.focusesComposer,
                 focusing: route.focus
             )
+            // State belongs to this channel even when SwiftUI reuses a destination depth.
+            .id(route.channel.id)
         case let .thread(route):
             ThreadView(
                 root: route.root,

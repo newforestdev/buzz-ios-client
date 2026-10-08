@@ -69,7 +69,7 @@ struct InAppNotification: Hashable, Identifiable {
         InAppNotificationRoute(
             location: location,
             fallbackChannel: fallbackChannel,
-            focus: ConversationFocus(messageID: entry.latest.id, sentAt: entry.latest.createdAt)
+            focus: nil
         )
     }
 

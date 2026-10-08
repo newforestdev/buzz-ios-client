@@ -41,6 +41,7 @@ targets:
     platform: iOS
     sources:
       - App/Sources
+      - NotificationShared
       # The Icon Composer icon is declared separately below, so this entry must not
       # also walk into it.
       - path: App/Resources
@@ -58,6 +59,8 @@ targets:
         type: file
         buildPhase: resources
     dependencies:
+      - target: HiveNotificationService
+        embed: true
       - package: NostrCore
       - package: BuzzKit
       - package: GRDB
@@ -70,6 +73,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Hive
+        HivePushGatewayURL: $(HIVE_PUSH_GATEWAY_URL)
         # Answers App Store Connect's export-compliance question once, in the binary,
         # instead of by hand at every single upload.
         #
@@ -176,6 +180,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
         SWIFT_STRICT_CONCURRENCY: complete
+        CODE_SIGN_ENTITLEMENTS: App/Resources/Hive.entitlements
         # iPhone only. Left unset, XcodeGen declares `1,2` — iPhone AND iPad — and
         # App Store Connect then rejects the upload, because an app that claims iPad
         # must support iPad multitasking, which means offering all four orientations
@@ -201,6 +206,34 @@ targets:
         # The global accent — a honey amber that tints buttons, reaction chips and the
         # unread pill — lives in App/Resources/Assets.xcassets.
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
+  HiveNotificationService:
+    type: app-extension
+    platform: iOS
+    sources:
+      - NotificationService
+      - NotificationShared
+    dependencies:
+      - package: NostrCore
+    info:
+      path: NotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: Hive Notifications
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(HIVE_HOST_BUNDLE_IDENTIFIER).NotificationService
+        CODE_SIGN_ENTITLEMENTS: NotificationService/NotificationService.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SWIFT_STRICT_CONCURRENCY: complete
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
   HiveTests:
     type: bundle.unit-test
     platform: iOS
@@ -240,6 +273,24 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_STRICT_CONCURRENCY: complete
+  HivePushTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - App/Tests/PushGatewayClientTests.swift
+      - App/Tests/PushPreviewTests.swift
+      - App/Tests/NotificationNavigationTests.swift
+      - App/Tests/Support/TempStore.swift
+      - App/Tests/Support/Fixture.swift
+      - App/Tests/Support/StubSender.swift
+      - App/Tests/Support/FakeHTTPTransport.swift
+    dependencies:
+      - target: Hive
+      - package: NostrCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: complete
 schemes:
   Hive:
     build:
@@ -266,3 +317,12 @@ schemes:
       config: Debug
       targets:
         - HiveUITests
+  HivePushTests:
+    build:
+      targets:
+        Hive: all
+        HivePushTests: [test]
+    test:
+      config: Debug
+      targets:
+        - HivePushTests
