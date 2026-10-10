@@ -100,7 +100,7 @@ This section describes the app as it is on `main`, not as planned. Anything not 
 
 These exist upstream, or are on the roadmap, and are honestly absent here:
 
-- **Push notifications.** There is no APNs registration, so nothing arrives from the relay while the app is closed. Later reminders are local notifications and do fire when it is.
+- **Push notifications.** Opt in with “Wake for new messages” on a relay advertising push support. APNs carries a generic wake; the device fetches signed sender/message previews using the active lease’s subscriptions. Expired or revoked leases retain a generic notification. Conflicting registrations are recovered when this device still holds the matching gateway credentials; otherwise Settings explains how to clear the old registration. Later reminders remain local notifications.
 - **In-app message search.** Channels can be searched by name; there is no screen that searches message text across conversations.
 - **Video, files, and camera capture.** Pictures can be attached from Photos or the pasteboard, but video is only marked, files are not attachable, and Camera currently opens a work-in-progress alert.
 - **A profile from the sidebar or the channel roster.** The sheet is reached from a message today, so someone who has not posted in the open conversation has no entry point.

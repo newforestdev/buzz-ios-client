@@ -27,7 +27,8 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
                 result = try? await client.fetch(context: context,
                     excluding: PushPreviewCustody.notifiedIDs(communityID: context.communityID))
             }
-            if Task.isCancelled || PushPreviewCustody.load() != context { result = nil }
+            if Task.isCancelled || PushPreviewCustody.load() != context
+                || context?.lease?.isActive(at: Int64(Date().timeIntervalSince1970)) != true { result = nil }
             self.finish(preview: result, context: context)
         }
     }
