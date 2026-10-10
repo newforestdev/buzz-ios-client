@@ -176,10 +176,10 @@ struct CreateIdentityView: View {
 
     private var blurb: String {
         switch step {
-        case .relay: "A community is a relay. Point Hive at the one you were given."
+        case .relay: "A community is a relay. Point Steelbeach at the one you were given."
         case .profile: "Your name and picture in this community. Both are only for this one, "
             + "and both can be changed later."
-        case .key, .working: "Hive is about to make a key for you here. Nothing is created "
+        case .key, .working: "Steelbeach is about to make a key for you here. Nothing is created "
             + "until you tap Create."
         }
     }
@@ -202,7 +202,7 @@ struct CreateIdentityView: View {
             return "That's an invite link, not a relay. Go back and use Join with an Invite — "
                 + "it makes your identity for you."
         }
-        return "That isn't a relay address Hive can use."
+        return "That isn't a relay address Steelbeach can use."
     }
 
     // MARK: - The address

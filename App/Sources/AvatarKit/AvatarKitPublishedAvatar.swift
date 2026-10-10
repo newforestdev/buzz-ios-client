@@ -78,7 +78,7 @@ extension AvatarKitPublishedAvatar {
     /// Said here rather than left to the encoder, because the alternative is an `image.png` in
     /// a Files listing beside every other app's `image.png`. The extension is the load-bearing
     /// half: it is how the share sheet decides which apps can accept the picture at all.
-    static let exportFilename = "Hive Avatar.png"
+    static let exportFilename = "Steelbeach Avatar.png"
 
     /// A finished export: the file the share sheet is pointed at, and the same bitmap for the
     /// thumbnail it draws while the reader is choosing where the picture is going.

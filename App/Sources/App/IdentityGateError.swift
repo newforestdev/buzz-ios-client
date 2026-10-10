@@ -22,7 +22,7 @@ enum IdentityGateError: Equatable {
         case .invalidSecretKey:
             "That doesn't look like a valid nsec key."
         case .couldNotStoreKey:
-            "Couldn't save the key on this device. Check that Hive has Keychain access, then try again."
+            "Couldn't save the key on this device. Check that Steelbeach has Keychain access, then try again."
         case .needsInvitation:
             "This community is invite-only. Ask someone already in it for an invite link, then open "
                 + "that link to join — its address alone won't let a new key in."

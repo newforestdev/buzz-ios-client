@@ -46,16 +46,16 @@ targets:
       # also walk into it.
       - path: App/Resources
         excludes:
-          - hive-buzz-app.icon
-          - hive-buzz-app.icon/**
-      # `hive-buzz-app.icon` is a FILE WRAPPER, not a folder: `actool` compiles it
+          - steelbeach.icon
+          - steelbeach.icon/**
+      # `steelbeach.icon` is a FILE WRAPPER, not a folder: `actool` compiles it
       # into the icon variants iOS 26 needs (light, dark, clear, tinted). XcodeGen
       # 2.44 does not know the `.icon` extension, so left to its own devices it
       # recurses in and adds `icon.json` and the layer images as four LOOSE
       # resources — which copies 330 KB of raw art into the bundle and leaves the
       # icon uncompiled. `type: file` keeps the wrapper whole; Xcode types it from
       # the extension and routes it to `actool`.
-      - path: App/Resources/hive-buzz-app.icon
+      - path: App/Resources/steelbeach.icon
         type: file
         buildPhase: resources
     dependencies:
@@ -72,7 +72,8 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Hive
+        CFBundleName: Steelbeach
+        CFBundleDisplayName: Steelbeach
         HivePushGatewayURL: $(HIVE_PUSH_GATEWAY_URL)
         # Answers App Store Connect's export-compliance question once, in the binary,
         # instead of by hand at every single upload.
@@ -98,7 +99,7 @@ targets:
         # per-frame Metal shader (`Honeycomb.metal`) and is the reason this is here; every
         # other animation in the app gets the higher rate with it.
         CADisableMinimumFrameDurationOnPhone: true
-        # A branded launch background (honey-tinted, light/dark) so the first frame is
+        # A branded launch background (black, light/dark) so the first frame is
         # not a bare white/black flash. The colour asset lives in the app's catalog.
         UILaunchScreen:
           UIColorName: LaunchBackground
@@ -159,21 +160,21 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         NSLocalNetworkUsageDescription: >-
-          Hive connects to the Buzz relay you configure, which may be on your local
+          Steelbeach connects to the Buzz relay you configure, which may be on your local
           or Tailscale network.
         NSCameraUsageDescription: >-
-          Hive uses the camera to take photos you attach to messages, and to scan the
+          Steelbeach uses the camera to take photos you attach to messages, and to scan the
           pairing QR code shown on your desktop.
         NSMicrophoneUsageDescription: >-
-          Hive uses the microphone only while you dictate text into a message.
+          Steelbeach uses the microphone only while you dictate text into a message.
         NSSpeechRecognitionUsageDescription: >-
-          Hive uses on-device speech recognition to turn your dictation into message text.
+          Steelbeach uses on-device speech recognition to turn your dictation into message text.
         # Add-only, deliberately: Hive never reads the photo library, and the prompt a
         # reader is shown should promise no more than the app will do. The read-side
         # `NSPhotoLibraryUsageDescription` is absent for that reason — the composer's
         # picker runs out of process and needs no access at all.
         NSPhotoLibraryAddUsageDescription: >-
-          Hive saves a picture from a conversation to your photo library when you
+          Steelbeach saves a picture from a conversation to your photo library when you
           ask it to.
     settings:
       base:
@@ -197,12 +198,12 @@ targets:
         # This does not remove the app from iPad. An iPhone-only app still installs and
         # runs there, in a phone-shaped window, which is exactly what it is designed for.
         TARGETED_DEVICE_FAMILY: "1"
-        # The app icon is `App/Resources/hive-buzz-app.icon` — the Icon Composer
+        # The app icon is `App/Resources/steelbeach.icon` — the Icon Composer
         # document, named here WITHOUT its extension. It is the only app icon in the
         # project: there is deliberately no `AppIcon` set in the catalog to fall back
         # to, because a second one is how this setting came to name the wrong icon.
         # `AppIconTests` fails if the two ever drift apart again.
-        ASSETCATALOG_COMPILER_APPICON_NAME: hive-buzz-app
+        ASSETCATALOG_COMPILER_APPICON_NAME: steelbeach
         # The global accent — a honey amber that tints buttons, reaction chips and the
         # unread pill — lives in App/Resources/Assets.xcassets.
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -222,7 +223,7 @@ targets:
     info:
       path: NotificationService/Info.plist
       properties:
-        CFBundleDisplayName: Hive Notifications
+        CFBundleDisplayName: Steelbeach Notifications
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService

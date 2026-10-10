@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Hive</string>
+	<string>Steelbeach</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Steelbeach</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,15 +45,15 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Hive uses the camera to take photos you attach to messages, and to scan the pairing QR code shown on your desktop.</string>
+	<string>Steelbeach uses the camera to take photos you attach to messages, and to scan the pairing QR code shown on your desktop.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Hive connects to the Buzz relay you configure, which may be on your local or Tailscale network.</string>
+	<string>Steelbeach connects to the Buzz relay you configure, which may be on your local or Tailscale network.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Hive uses the microphone only while you dictate text into a message.</string>
+	<string>Steelbeach uses the microphone only while you dictate text into a message.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Hive saves a picture from a conversation to your photo library when you ask it to.</string>
+	<string>Steelbeach saves a picture from a conversation to your photo library when you ask it to.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Hive uses on-device speech recognition to turn your dictation into message text.</string>
+	<string>Steelbeach uses on-device speech recognition to turn your dictation into message text.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>InterVariable.ttf</string>

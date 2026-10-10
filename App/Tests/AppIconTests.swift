@@ -3,9 +3,9 @@ import Testing
 
 @Suite("App icon")
 struct AppIconTests {
-    /// `App/Resources/hive-buzz-app.icon` — the Icon Composer document — without its
+    /// `App/Resources/steelbeach.icon` — the Icon Composer document — without its
     /// extension, which is the form `ASSETCATALOG_COMPILER_APPICON_NAME` takes.
-    private static let documentName = "hive-buzz-app"
+    private static let documentName = "steelbeach"
 
     @Test("the built app's icon is the Icon Composer document")
     func primaryIconIsTheIconComposerDocument() throws {
@@ -17,7 +17,7 @@ struct AppIconTests {
         //
         // `actool` writes this key from its `--app-icon` argument, which makes it the
         // compiled evidence rather than a restatement of the setting: it can only read
-        // `hive-buzz-app` if the build setting named the document *and* the document
+        // `steelbeach` if the build setting named the document *and* the document
         // reached `actool` as an input catalog.
         let icons = try #require(Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any])
         let primary = try #require(icons["CFBundlePrimaryIcon"] as? [String: Any])

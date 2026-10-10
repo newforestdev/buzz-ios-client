@@ -91,7 +91,7 @@ extension ShapeStyle where Self == Color {
 
     /// What the head of a travelling pulse reaches: the accent pushed toward white so the
     /// light reads as passing *through* the line rather than as a second colour painted on it.
-    static var hiveHoneyGlow: Color { Color(red: 1.0, green: 0.855, blue: 0.55) }
+    static var hiveHoneyGlow: Color { Color(white: 0.82) }
 }
 
 #Preview("Honeycomb") {

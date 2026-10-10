@@ -33,7 +33,7 @@ struct DraftsScreenTests {
 
     // MARK: - The card
 
-    /// The owner called the Drafts card too loud: a filled glyph and an amber edge say the
+    /// The owner called the Drafts card too loud: a filled glyph and a grey edge say the
     /// same thing twice. A card that can fill its glyph gives the edge up; one that cannot
     /// keeps it, because the edge is then the only thing it has.
     @Test("only a card whose glyph cannot fill spends the accent on its edge")

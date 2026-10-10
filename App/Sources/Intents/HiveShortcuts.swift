@@ -1,7 +1,7 @@
 import AppIntents
 
 /// The actions the system offers without anybody setting them up: what Siri answers to,
-/// what Spotlight lists under the app, and what the Shortcuts gallery shows in Hive's own
+/// what Spotlight lists under the app, and what the Shortcuts gallery shows in Steelbeach's own
 /// section.
 ///
 /// # Two things here are load-bearing, and neither can be read back
@@ -26,9 +26,8 @@ import AppIntents
 /// An SF Symbol the system does not have draws nothing at all, silently — the same trap
 /// ``HomeShortcut/symbol(hasItems:)`` is already pinned against.
 struct HiveShortcuts: AppShortcutsProvider {
-    /// Hive's honey amber has no exact system tile colour; orange is the nearest warm,
-    /// saturated option without pushing the tile toward yellow or red.
-    static var shortcutTileColor: ShortcutTileColor { .orange }
+    /// The Steelbeach tile uses a neutral grey to match the app's default accent.
+    static var shortcutTileColor: ShortcutTileColor { .grayBlue }
 
     static var appShortcuts: [AppShortcut] {
         AppShortcut(

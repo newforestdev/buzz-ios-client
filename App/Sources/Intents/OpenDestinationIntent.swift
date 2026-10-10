@@ -14,7 +14,7 @@ import AppIntents
 struct OpenDestinationIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Screen"
     static let description = IntentDescription(
-        "Opens one of Hive's screens: Threads, Later, or Drafts.",
+        "Opens one of Steelbeach's screens: Threads, Later, or Drafts.",
         categoryName: "Navigation"
     )
 

@@ -152,7 +152,7 @@ struct SettingsView: View {
     private static let swatchColumns = [GridItem(.adaptive(minimum: 72), spacing: 12)]
 
     private static let themeBlurb =
-        "The ground every screen is drawn on, and the colour Hive uses for its own marks. "
+        "The ground every screen is drawn on, and the colour Steelbeach uses for its own marks. "
             + "Backgrounds come from the Buzz client's own theme catalogue."
 
     // MARK: - Notifications
@@ -298,12 +298,12 @@ struct SettingsView: View {
     // MARK: - Copy
 
     private static let notificationsBlurb =
-        "Alerts from Hive on this phone — today, the reminders you set with Remind Me. This "
+        "Alerts from Steelbeach on this phone — today, the reminders you set with Remind Me. This "
             + "applies to every community, and turning it off leaves the reminders themselves "
             + "alone: they stay in Later and still come due, they just stop interrupting you."
 
     private static let systemDeniedNote =
-        "iOS is blocking notifications for Hive, so nothing will arrive until they are allowed "
+        "iOS is blocking notifications for Steelbeach, so nothing will arrive until they are allowed "
             + "at the system level too."
 
     // MARK: - Agents

@@ -10,6 +10,7 @@ struct SearchView: View {
     /// Everything this stack has pushed, conversations and threads alike — see
     /// ``AppRoute`` for why a thread is an element here rather than a binding beside it.
     @State private var path: [AppRoute] = []
+    @Binding private var hidesRootNavigationBar: Bool
     /// The result whose tap has not yet produced a screen. Drawn as a spinner on that row,
     /// and cleared by the destination's own `onAppear`, so it covers exactly the gap between
     /// the finger and the answer and never outlives it.
@@ -25,10 +26,16 @@ struct SearchView: View {
     private let engine: SyncEngine
     private let selfPubkey: String?
 
-    init(store: BuzzEventStore, engine: SyncEngine, selfPubkey: String?) {
+    init(
+        store: BuzzEventStore,
+        engine: SyncEngine,
+        selfPubkey: String?,
+        hidesRootNavigationBar: Binding<Bool> = .constant(false)
+    ) {
         self.store = store
         self.engine = engine
         self.selfPubkey = selfPubkey
+        _hidesRootNavigationBar = hidesRootNavigationBar
         _model = State(initialValue: SearchModel(store: store, selfPubkey: selfPubkey, engine: engine))
         _router = State(initialValue: DirectMessageRouter(opener: engine))
     }
@@ -63,7 +70,9 @@ struct SearchView: View {
         }
         // From the path alone, because the path is now the whole stack. Declared here rather
         // than on the pushed views for ``ChannelListTabBar``'s measured reason.
-        .toolbar(ChannelListTabBar.visibility(path: path), for: .tabBar)
+        .onChange(of: path, initial: true) { _, newPath in
+            hidesRootNavigationBar = ChannelListTabBar.visibility(path: newPath) == .hidden
+        }
         .environment(\.entityNames, entityNames)
         .environment(\.channelNameMap, ChannelNameMap(channels: model.channels))
         .environment(\.relativeTimeTicker, ticker)

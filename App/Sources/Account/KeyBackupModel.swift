@@ -34,7 +34,7 @@ final class KeyBackupModel {
         guard revealedNsec == nil else { return }
         isAuthenticating = true
         revealFailed = false
-        let authenticated = await authenticator.authenticate(reason: "Reveal your Hive secret key")
+        let authenticated = await authenticator.authenticate(reason: "Reveal your Steelbeach secret key")
         isAuthenticating = false
         guard authenticated, let key = loadKey() else {
             revealFailed = true

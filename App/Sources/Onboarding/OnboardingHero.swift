@@ -2,17 +2,17 @@ import SwiftUI
 
 /// The app mark at the top of onboarding: the app icon itself, lit from behind.
 ///
-/// It draws `HiveMark` from the asset catalog rather than an SF Symbol hexagon. The symbol was
+/// It draws `SteelbeachMark` from the asset catalog rather than an SF Symbol hexagon. The symbol was
 /// a stand-in and it read as one: a bare `hexagon.fill` sitting on a hexagonal lattice looks
 /// like one more cell of the pattern, where the icon — bee inside the comb — is the thing a
 /// reader already has on their home screen. The art is the same layer the icon is built from
-/// (`hive-buzz-app.icon/Assets/Group 2678.png`), copied into the catalog because the `.icon`
+/// (`steelbeach.icon/Assets/Group 2678.png`), copied into the catalog because the `.icon`
 /// wrapper is compiled by `actool` for the launcher and its layers are not addressable by name
 /// at runtime.
 ///
 /// The glow behind it stays, quietly. It is what the honeycomb's radial falloff is aimed at, so
 /// the lattice appears to radiate out of the mark rather than merely sit behind it.
-struct HiveMark: View {
+struct SteelbeachMark: View {
     var size: CGFloat = 68
 
     var body: some View {
@@ -31,7 +31,7 @@ struct HiveMark: View {
 
             // The icon carries its own transparent margin, so it is drawn larger than `size`
             // to land on the same optical width the symbol had.
-            Image("HiveMark")
+            Image("SteelbeachMark")
                 .resizable()
                 .scaledToFit()
                 .frame(width: size * 1.5, height: size * 1.5)
@@ -59,7 +59,7 @@ struct OnboardingHero: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HiveMark(size: markSize)
+            SteelbeachMark(size: markSize)
 
             VStack(spacing: 4) {
                 Text(title)
@@ -95,7 +95,7 @@ struct OnboardingHero: View {
     ZStack {
         HoneycombBackground()
         OnboardingHero(
-            title: "Welcome to Hive",
+            title: "Welcome to Steelbeach",
             accentLine: "for Buzz",
             blurb: OnboardingView.welcomeBlurb
         )

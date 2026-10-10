@@ -34,6 +34,7 @@ struct ChannelListView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State var model: ChannelListModel
+    @Binding private var hidesRootNavigationBar: Bool
     @State private var presence: PresenceModel
     @State private var directory: EntityDirectoryModel
     @State private var ticker = RelativeTimeTicker()
@@ -109,11 +110,13 @@ struct ChannelListView: View {
         engine: SyncEngine,
         drafts: ComposerDrafts? = nil,
         selfPubkey: String?,
-        notificationRoute: Binding<InAppNotificationRoute?> = .constant(nil)
+        notificationRoute: Binding<InAppNotificationRoute?> = .constant(nil),
+        hidesRootNavigationBar: Binding<Bool> = .constant(false)
     ) {
         self.store = store
         self.engine = engine
         _notificationRoute = notificationRoute
+        _hidesRootNavigationBar = hidesRootNavigationBar
         _draftsModel = State(initialValue: DraftsModel(store: store, drafts: drafts))
         _model = State(initialValue: ChannelListModel(store: store, selfPubkey: selfPubkey))
         _presence = State(initialValue: PresenceModel(store: engine.presenceStore))
@@ -274,12 +277,14 @@ struct ChannelListView: View {
         // Hidden outright while the communities panel is out, because that panel is
         // full-height: a tab bar drawn over its bottom edge would put Home and Activity on
         // top of **Scan QR from Desktop**, and the reference the owner gave has nothing there.
-        .toolbar(
-            workspacePanel.isOpen
-                ? .hidden
-                : ChannelListTabBar.visibility(path: path),
-            for: .tabBar
-        )
+        .onChange(of: path, initial: true) { _, newPath in
+            hidesRootNavigationBar = workspacePanel.isOpen
+                || ChannelListTabBar.visibility(path: newPath) == .hidden
+        }
+        .onChange(of: workspacePanel.isOpen, initial: true) { _, isOpen in
+            hidesRootNavigationBar = isOpen
+                || ChannelListTabBar.visibility(path: path) == .hidden
+        }
         // And the navigation bar's own material with it, though the bar itself stays.
         //
         // The bar draws *over* the panel — the panel is content inside this stack — so its

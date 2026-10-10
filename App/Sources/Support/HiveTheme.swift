@@ -24,29 +24,14 @@ import UIKit
 /// by, not values extracted from upstream's file. It is the one place this deliberately diverges,
 /// and it is what makes choosing a theme visibly change two things rather than one.
 ///
-/// # Hive, Hive Dark, and why their ids read wrong
+/// # Steelbeach and stable saved theme ids
 ///
-/// Upstream's catalogue carries a `slack-dark` whose `#222222` ground ``all`` took verbatim like
-/// every other one. The owner then chose that grey as Hive's own and darkened it to `#141414`
-/// (2026-08-06), so it is no longer a Slack entry at all: it is **Hive**, first in the list and
-/// the default, and the near-black the app shipped with before the picker existed is **Hive
-/// Dark** beside it. The two are a real step apart deliberately — the default is the lighter
-/// grey, and the old near-black is one swatch away for anyone who preferred it.
+/// The two app themes keep their historical IDs so existing installs retain their saved
+/// selection. Their visible names now use the Steelbeach brand. The default uses a black
+/// ground and the grey accent asset; Steelbeach Dark keeps a softer charcoal ground.
 ///
-/// **Their ids did not move, and that is the point.** ``hive`` persists as `slack-dark` and
-/// ``hiveDark`` as `hive`, because an id is an opaque storage key and renaming one resets every
-/// reader who had chosen it. Swapping the two ids to match the new names is worse than leaving
-/// them: `hive` would mean the grey to this version and the near-black to the last, one string
-/// with two meanings and no way to tell them apart, so no migration table could be written.
-/// The names are what a reader sees; the ids are history.
-///
-/// Both take a `nil` accent and draw the asset catalogue's amber. Taking `nil` rather than
-/// hardcoding `#FFBA38` is deliberate — it puts them on the same light/dark-resolving asset
-/// path ``AccentTests`` already guards, which a literal would silently leave.
-///
-/// **Slack Aubergine** stays, on the sidebar purple the product is actually known by, with
-/// Slack's own brand blue for an accent rather than upstream's `added` field — which records
-/// `#ECB22E` for `slack-dark`, within a few degrees of Hive's own `#FFBA38`.
+/// Both use a `nil` accent so the asset catalogue supplies the light/dark grey pair.
+/// The other themes remain available in Settings.
 struct HiveTheme: Identifiable, Equatable, Sendable {
     /// The persisted value — the upstream catalogue's own name for the themes taken from it.
     /// Stable across releases and *not* required to match ``name``: changing one silently
@@ -57,7 +42,7 @@ struct HiveTheme: Identifiable, Equatable, Sendable {
     /// The screen ground — upstream's `bg`, unmodified.
     let background: Color
     /// The palette's signature colour as the catalogue writes it, `0xRRGGBB` — or `nil` for
-    /// ``hive``, whose accent is the asset catalogue's amber rather than one number.
+    /// ``hive``, whose accent comes from the grey asset catalogue rather than one number.
     let accentHex: UInt32?
 
     /// The colour the app draws "its own" marks in.
@@ -102,38 +87,26 @@ struct HiveTheme: Identifiable, Equatable, Sendable {
 }
 
 extension HiveTheme {
-    /// **The app's ground and the default** — the grey the owner chose as Hive's own, with the
-    /// honey amber from the asset catalogue on it. First in the list, so an install that has
-    /// never opened Settings gets this one. Its id is historical; see this type's note.
-    ///
-    /// `#141414` is upstream's `slack-dark` `#222222` taken down two notches at the owner's
-    /// word (2026-08-06, *"a little bit dark, not too much"*, then *"a little bit more
-    /// darker"* — `#222222` → `#1A1A1A` → `#141414`, judged on his own device each time). It
-    /// is the one ground here that is no longer the catalogue's number, which is the whole
-    /// reason it stopped being a Slack entry. It stays clear of ``hiveDark``'s `#050607`, so
-    /// the two still read as different choices rather than two attempts at the same one —
-    /// which is what limits how much further this can go.
+    /// The black ground and grey accent used by default. Its persisted ID is historical;
+    /// see the note above about keeping saved theme selections stable.
     static let hive = HiveTheme(
         id: "slack-dark",
-        name: "Hive",
-        background: .hex(0x141414),
+        name: "Steelbeach",
+        background: .hex(0x000000),
         accentHex: nil
     )
 
-    /// The near-black the app wore before the picker existed — `hiveNight`, the ground the
-    /// honeycomb composites over and the dark end of `LaunchBackground`. Second, so a reader
-    /// who preferred it does not have to hunt for it. Its id is historical; see this type's note.
+    /// A charcoal alternative for readers who prefer a softer ground. Its ID remains stable.
     static let hiveDark = HiveTheme(
         id: "hive",
-        name: "Hive Dark",
-        background: Color.hiveNight,
+        name: "Steelbeach Dark",
+        background: .hex(0x141414),
         accentHex: nil
     )
 
     /// The thirteen alternatives, ordered by the WCAG relative luminance of their background so
     /// the picker reads as a gradient rather than an arbitrary list. ``hive`` and ``hiveDark``
-    /// are pinned first regardless — one is the default and the other is the app's other own
-    /// colour, and both are what somebody scrolls back to.
+    /// are pinned first regardless — the default and the app's charcoal alternative.
     static let all: [HiveTheme] = [
         .hive,
         .hiveDark,

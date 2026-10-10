@@ -21,9 +21,9 @@ enum MarkdownDocumentLoader {
 
         var errorDescription: String? {
             switch self {
-            case .download: "Hive couldn't download this file. Check your connection and try again."
+            case .download: "Steelbeach couldn't download this file. Check your connection and try again."
             case .decode: "This file isn't readable as text."
-            case .tooLarge: "This file is too large to open in Hive."
+            case .tooLarge: "This file is too large to open in Steelbeach."
             }
         }
     }

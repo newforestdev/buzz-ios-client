@@ -51,6 +51,7 @@ struct ActivityView: View {
     /// reason ``ChannelListView`` gives: the path has to be *readable* for
     /// ``ConversationRoute/pushed(onto:)`` to keep a conversation off its own stack.
     @State private var path: [AppRoute] = []
+    @Binding private var hidesRootNavigationBar: Bool
     /// Opens a direct message from a profile sheet presented inside this stack.
     @State private var router: DirectMessageRouter
 
@@ -58,10 +59,16 @@ struct ActivityView: View {
     private let engine: SyncEngine
     private let selfPubkey: String?
 
-    init(store: BuzzEventStore, engine: SyncEngine, selfPubkey: String?) {
+    init(
+        store: BuzzEventStore,
+        engine: SyncEngine,
+        selfPubkey: String?,
+        hidesRootNavigationBar: Binding<Bool> = .constant(false)
+    ) {
         self.store = store
         self.engine = engine
         self.selfPubkey = selfPubkey
+        _hidesRootNavigationBar = hidesRootNavigationBar
         _model = State(initialValue: ActivityModel(store: store, selfPubkey: selfPubkey))
         _router = State(initialValue: DirectMessageRouter(opener: engine))
     }
@@ -85,10 +92,9 @@ struct ActivityView: View {
         }
         // The same rule the sidebar's stack applies, through the same function: a reading
         // surface with a composer gets the full height, a list keeps the bar.
-        .toolbar(
-            ChannelListTabBar.visibility(path: path),
-            for: .tabBar
-        )
+        .onChange(of: path, initial: true) { _, newPath in
+            hidesRootNavigationBar = ChannelListTabBar.visibility(path: newPath) == .hidden
+        }
         // Injected on the stack rather than inside it, because a value attached below
         // `navigationDestination` never reaches the pushed view — the trap
         // ``ChannelListView`` documents at length, and the one that would otherwise leave a

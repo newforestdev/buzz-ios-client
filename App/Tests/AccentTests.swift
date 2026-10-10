@@ -4,7 +4,7 @@ import UIKit
 
 @testable import Hive
 
-/// The app's accent, and the two places it has to arrive for the app to be amber rather
+/// The app's accent, and the two places it has to arrive for the app to be grey rather
 /// than blue: SwiftUI, which reads a colour by name, and UIKit, which reads a window's tint.
 ///
 /// Written as a test because the failure it guards against is silent and total. Nothing
@@ -14,7 +14,7 @@ import UIKit
 /// # Why these name ``HiveTheme/hive`` instead of reading the live accent
 ///
 /// They are about the *asset* and the *wiring*, not about which theme is chosen. Reading
-/// ``HiveAccent/uiColor`` here made them assert "the app is amber" against a global the host
+/// ``HiveAccent/uiColor`` here made them assert "the app is grey" against a global the host
 /// app writes at launch from `UserDefaults.standard` — so a machine whose simulator had ever
 /// had a theme picked turned three of these red with that theme's own accent, which is not a
 /// defect in anything they test. Naming the default theme asks the question they actually
@@ -29,9 +29,9 @@ struct AccentTests {
         #expect(UIColor(named: HiveAccent.assetName, in: .main, compatibleWith: nil) != nil)
     }
 
-    @Test("the accent is the catalogue's amber in both appearances")
+    @Test("the accent is grey in both appearances")
     @MainActor
-    func resolvesToAmber() {
+    func resolvesToGrey() {
         // The two entries of `AccentColor.colorset`, read back from the compiled catalogue.
         expect(HiveTheme.hive.uiAccent, in: .light, isNear: .light)
         expect(HiveTheme.hive.uiAccent, in: .dark, isNear: .dark)
@@ -73,9 +73,9 @@ struct AccentTests {
     @MainActor
     func theDefaultThemeKeepsBothEntries() {
         // The property that broke when the accent started going through a theme: bridging the
-        // amber with `UIColor(Color(…))` produces something that resolves to one colour whatever
+        // grey with `UIColor(Color(…))` produces something that resolves to one colour whatever
         // appearance it is asked about, and the asset has a light entry and a dark one. Asserted
-        // as "the two differ" rather than by value — the values are ``resolvesToAmber``'s job,
+        // as "the two differ" rather than by value — the values are ``resolvesToGrey``'s job,
         // and what this one is about is that there are still two of them.
         let light = HiveTheme.hive.uiAccent.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
         let dark = HiveTheme.hive.uiAccent.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
@@ -106,7 +106,7 @@ struct AccentTests {
     private func expect(
         _ color: UIColor,
         in style: UIUserInterfaceStyle,
-        isNear expected: Amber,
+        isNear expected: Grey,
         sourceLocation: SourceLocation = #_sourceLocation
     ) {
         let resolved = color.resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
@@ -122,14 +122,14 @@ struct AccentTests {
     }
 
     /// The two colours the catalogue holds, in the order a colour reports them.
-    private struct Amber {
+    private struct Grey {
         let red: CGFloat
         let green: CGFloat
         let blue: CGFloat
 
         /// `AccentColor.colorset`, the entry with no appearance on it.
-        static let light = Amber(red: 0.961, green: 0.659, blue: 0.129)
-        /// `AccentColor.colorset`, the `luminosity: dark` entry — 255, 186, 56.
-        static let dark = Amber(red: 1.0, green: 0.729, blue: 0.220)
+        static let light = Grey(red: 0.480, green: 0.480, blue: 0.480)
+        /// `AccentColor.colorset`, the `luminosity: dark` entry.
+        static let dark = Grey(red: 0.720, green: 0.720, blue: 0.720)
     }
 }

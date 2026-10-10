@@ -96,8 +96,8 @@ struct AppSettingsTests {
 
     // MARK: - Theme
 
-    @Test("an install that has never opened the picker is on Hive")
-    func themeDefaultsToHive() {
+    @Test("an install that has never opened the picker is on Steelbeach")
+    func themeDefaultsToSteelbeach() {
         let (defaults, suite) = makeSuite()
         defer { forget(suite) }
 
@@ -134,7 +134,7 @@ struct AppSettingsTests {
         #expect(Set(ids).count == ids.count)
     }
 
-    @Test("Hive is the first swatch, so the default is where somebody scrolls back to")
+    @Test("Steelbeach is the first swatch, so the default is where somebody scrolls back to")
     func hiveLeadsThePicker() {
         #expect(HiveTheme.all.first == .hive)
     }
@@ -146,7 +146,7 @@ struct AppSettingsTests {
     /// The accent was a plain `static var` first. It held the right colour — every one of these
     /// assertions except this one passed against it — and the app still drew the *outgoing*
     /// accent on any view that had no other reason to re-render, because SwiftUI cannot depend
-    /// on a global it cannot see. The owner reported it as shortcut cards keeping their amber
+    /// on a global it cannot see. The owner reported it as shortcut cards keeping their grey
     /// edge and wash while the tab bar beside them went green.
     ///
     /// So the property under test is not "the accent is correct" but "**reading** the accent
@@ -190,7 +190,7 @@ struct AppSettingsTests {
         #expect(Color.hiveGround == HiveTheme.named("gruvbox-dark-medium").background)
     }
 
-    @Test("a relaunch on a chosen theme comes up in that theme's accent, not the amber")
+    @Test("a relaunch on a chosen theme comes up in that theme's accent, not the grey")
     func theAccentSurvivesARelaunch() {
         let (defaults, suite) = makeSuite()
         defer { forget(suite); HiveThemeBox.shared.theme = .hive }

@@ -148,7 +148,7 @@ struct AccountView: View {
     private var signOutTitle: String {
         environment.communities.communities.count > 1
             ? "Sign out of all \(environment.communities.communities.count) communities?"
-            : "Sign out of Hive?"
+            : "Sign out of Steelbeach?"
     }
 
     private var signOutMessage: String {
@@ -267,7 +267,7 @@ private struct AccountExportAvatarCard: View {
     /// makes the same allowance for the same reason.
     private func sharePreview(_ export: AvatarKitPublishedAvatar.Export) -> SharePreview<Image, Never> {
         let image = export.image.map { Image(uiImage: $0) } ?? Image(systemName: "person.crop.square")
-        return SharePreview("Hive Avatar", image: image)
+        return SharePreview("Steelbeach Avatar", image: image)
     }
 }
 #endif

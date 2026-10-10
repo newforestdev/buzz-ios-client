@@ -309,9 +309,9 @@ struct JoinCommunityView: View {
             JoinCardNote(
                 text: policy.ageAttestationRequired
                     ? "Joining records that you accepted these terms and made this statement. "
-                    + "Required by this community, not by Hive."
+                    + "Required by this community, not by Steelbeach."
                     : "Joining records that you accepted these terms. Required by this "
-                    + "community, not by Hive."
+                    + "community, not by Steelbeach."
             )
         }
     }

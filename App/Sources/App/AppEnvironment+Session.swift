@@ -147,6 +147,6 @@ extension AppEnvironment {
     /// Said when a Keychain delete would not take. Names what is still on the device and
     /// the one action that clears it, rather than apologising.
     static let keyNotClearedMessage =
-        "Hive signed out, but one of your keys is still stored on this device. Signing out "
+        "Steelbeach signed out, but one of your keys is still stored on this device. Signing out "
             + "again usually clears it; removing the community always does."
 }

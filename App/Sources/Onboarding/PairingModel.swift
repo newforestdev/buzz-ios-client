@@ -128,7 +128,7 @@ final class PairingModel {
     static func scanMessage(for error: NostrPairError) -> String {
         switch error {
         case .unsupportedVersion:
-            "This QR code needs a newer version of Hive. Update the app and try again."
+            "This QR code needs a newer version of Steelbeach. Update the app and try again."
         default:
             "That isn't a valid Buzz pairing code."
         }
@@ -153,13 +153,13 @@ final class PairingModel {
         case .importFailed:
             "Couldn't save the identity to this device. Try again."
         case .invalidPayload:
-            "Your desktop sent something Hive didn't recognise."
+            "Your desktop sent something Steelbeach didn't recognise."
         case .authenticationRejected:
             "The relay refused the connection. Check your relay settings."
         case .connectionFailed, .internalError:
             "Couldn't reach the pairing relay. Make sure both devices are online."
         case .unsupportedVersion:
-            "This QR code needs a newer version of Hive."
+            "This QR code needs a newer version of Steelbeach."
         default:
             "Pairing couldn't be completed. Please try again."
         }

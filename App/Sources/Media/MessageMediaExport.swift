@@ -41,10 +41,10 @@ enum MessageMediaExport {
 
         var errorDescription: String? {
             switch self {
-            case .download: "Hive couldn't download this attachment. Check your connection and try again."
+            case .download: "Steelbeach couldn't download this attachment. Check your connection and try again."
             case .photoLibraryDenied:
-                "Hive isn't allowed to add to your photo library. You can change that in Settings."
-            case .save: "Hive couldn't save this picture to your photo library."
+                "Steelbeach isn't allowed to add to your photo library. You can change that in Settings."
+            case .save: "Steelbeach couldn't save this picture to your photo library."
             }
         }
     }

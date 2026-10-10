@@ -179,7 +179,7 @@ struct OnboardingView: View {
 
     private var hero: some View {
         OnboardingHero(
-            title: isAddingCommunity ? "Add a community" : "Welcome to Hive",
+            title: isAddingCommunity ? "Add a community" : "Welcome to Steelbeach",
             accentLine: isAddingCommunity ? nil : "for Buzz",
             blurb: isAddingCommunity ? Self.addingBlurb : Self.welcomeBlurb,
             markSize: isAddingCommunity ? 48 : 68
@@ -329,7 +329,7 @@ extension OnboardingView {
     /// Says the one thing a reader adding their second community needs to know, which is
     /// that it does not cost them the first.
     static let addingBlurb =
-        "A community is a relay. Point Hive at another one to join it — the communities "
+        "A community is a relay. Point Steelbeach at another one to join it — the communities "
             + "you're already in stay where they are."
 
     static let relayNote =
@@ -340,7 +340,7 @@ extension OnboardingView {
     /// reaching for, and points at the other route — a relay that does not already know you
     /// wants an invite, not an identity (§ ``JoinCommunityModel``).
     static let relayRefusedNote =
-        "That isn't a relay address Hive can use. A relay looks like wss://relay.example, "
+        "That isn't a relay address Steelbeach can use. A relay looks like wss://relay.example, "
             + "or the https:// address it serves its own pages on. If you were given an "
             + "invite link, use Join with an Invite instead."
 

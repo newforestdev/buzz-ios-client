@@ -4,7 +4,7 @@ import AppIntents
 struct OpenConversationIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Conversation"
     static let description = IntentDescription(
-        "Opens a Hive channel in the active community.",
+        "Opens a Steelbeach channel in the active community.",
         categoryName: "Navigation"
     )
     static let openAppWhenRun = true

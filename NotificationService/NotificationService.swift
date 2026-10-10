@@ -12,7 +12,7 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
         guard let content = request.content.mutableCopy() as? UNMutableNotificationContent else {
             contentHandler(request.content); return
         }
-        content.title = "Hive"; content.body = "New message"; content.sound = .default
+        content.title = "Steelbeach"; content.body = "New message"; content.sound = .default
         lock.withLock { handler = contentHandler; fallback = content }
         work = Task { [weak self] in
             guard let self else { return }

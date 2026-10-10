@@ -39,10 +39,10 @@ extension ChannelListView {
     static let resumeHint = "Last opened. Swipe left on this screen to reopen it."
 
     /// Why the sidebar is empty when the relay cannot be reached. It names the rule rather
-    /// than apologising for it: Hive lists the conversations the relay confirms, so with no
+    /// than apologising for it: Steelbeach lists the conversations the relay confirms, so with no
     /// relay there is nothing it can honestly list.
     static let unreachableMessage =
-        "Hive lists the conversations the relay confirms you’re in, so there’s nothing to show "
+        "Steelbeach lists the conversations the relay confirms you’re in, so there’s nothing to show "
             + "until it answers. Your messages are still saved."
 
     /// How far a heading sits in from the screen's edges, matching the row content below it.

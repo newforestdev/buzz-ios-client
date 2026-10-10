@@ -157,11 +157,11 @@ extension JoinCommunityModel {
         case .unreachable:
             "Couldn't reach that relay. Check your connection and try again."
         case .invalidRelayURL:
-            "That link doesn't name a relay Hive can connect to."
+            "That link doesn't name a relay Steelbeach can connect to."
         case let .httpStatus(status):
             "The relay refused the invite (HTTP \(status))."
         default:
-            "The relay's answer wasn't something Hive could read."
+            "The relay's answer wasn't something Steelbeach could read."
         }
     }
 

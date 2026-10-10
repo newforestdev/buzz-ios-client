@@ -1,14 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// The app's accent: the honey amber in `App/Resources/Assets.xcassets/AccentColor`.
+/// The app's accent: the grey in `App/Resources/Assets.xcassets/AccentColor`.
 ///
 /// The asset is read *by name* rather than through `Color.accentColor`, and the difference
 /// is the whole reason this exists. Setting the catalogue's global accent — which this
 /// project does, in `project.yml`, and which writes `NSAccentColorName` into the built
 /// `Info.plist` — turns out not to reach either framework on iOS: measured on the simulator,
 /// `Color.accentColor` resolves to sRGB (0, 0.569, 1) and a fresh `UIView`'s `tintColor` to
-/// the same, which is the system blue, while the asset itself resolves to the amber it
+/// the same, which is the system blue, while the asset itself resolves to the grey it
 /// holds. Everything the app had drawn "in the accent" was therefore drawing in blue.
 ///
 /// So the accent is applied by hand, in three places, and each of them is one line:
@@ -25,7 +25,7 @@ import UIKit
 /// re-draws a view when a value it *read while building* changes, and it can only know about a
 /// read it can see: `@Observable`, `@Environment`, `@State`. A bare global is none of those. So
 /// every view that drew `Color.hiveAccent` and had no other reason to re-render kept the
-/// **outgoing** accent after a theme change — the shortcut cards held their amber edge and wash
+/// **outgoing** accent after a theme change — the shortcut cards held their grey edge and wash
 /// while the tab bar beside them went green, and which views updated depended on nothing but
 /// whether something else happened to invalidate them first. That reads as random, and the
 /// owner reported it as random.
@@ -69,7 +69,7 @@ enum HiveAccent {
     /// The catalogue name. One string, so a typo is one test away rather than eight.
     static let assetName = "AccentColor"
 
-    /// The accent the app is currently drawing — the chosen ``HiveTheme``'s, or the amber asset
+    /// The accent the app is currently drawing — the chosen ``HiveTheme``'s, or the grey asset
     /// until a theme says otherwise.
     static var current: Color { HiveThemeBox.shared.theme.accent }
 
@@ -77,8 +77,8 @@ enum HiveAccent {
     /// `UIColor`.
     ///
     /// Built by the theme rather than bridged with `UIColor(current)`. `UIColor(someSwiftUIColor)`
-    /// is not the identity it looks like: bridging the amber *asset* through it produces a colour
-    /// that no longer answers `resolvedColor(with:)` per appearance, and the amber has a light
+    /// is not the identity it looks like: bridging the grey *asset* through it produces a colour
+    /// that no longer answers `resolvedColor(with:)` per appearance, and the grey has a light
     /// entry and a dark one. Doing that cost the window tint its colour — the caret, the
     /// selection handles, menus and alerts — and ``AccentTests`` is what said so. See
     /// ``HiveTheme/uiAccent``.
@@ -86,7 +86,7 @@ enum HiveAccent {
 }
 
 extension ShapeStyle where Self == Color {
-    /// The app's accent — the chosen ``HiveTheme``'s, or the honey amber in the asset catalogue
+    /// The app's accent — the chosen ``HiveTheme``'s, or the grey in the asset catalogue
     /// for anyone who has never opened the picker.
     ///
     /// Prefer this to `Color.accentColor` for anything that is meant to be *the app's
@@ -133,7 +133,7 @@ extension View {
 }
 
 /// The view behind ``SwiftUI/View/hiveWindowTint()``. Not private: its `UIView` is what the
-/// accent test drives, because "the app's window is amber" is not a claim SwiftUI can be
+/// accent test drives, because "the app's window is grey" is not a claim SwiftUI can be
 /// asked about directly.
 struct WindowTint: UIViewRepresentable {
     let color: UIColor

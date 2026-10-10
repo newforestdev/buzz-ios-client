@@ -2,7 +2,7 @@ import BuzzKit
 import StoreKit
 import SwiftUI
 
-/// The top of the view tree: the identity gate until a key is present, then the tab bar.
+/// The top of the view tree: the identity gate until a key is present, then Steelbeach navigation.
 /// Reads ``AppEnvironment`` from the environment so a phase change (identity accepted,
 /// engine started) re-renders here automatically.
 struct RootView: View {
@@ -11,6 +11,9 @@ struct RootView: View {
     /// Which tab is being read. Held here rather than persisted: an app returning from the
     /// background is the same session, and an app relaunched should open where the work is.
     @State private var tab: HomeTab = .home
+    @State private var homeHidesNavigation = false
+    @State private var inboxHidesNavigation = false
+    @State private var searchHidesNavigation = false
     @State private var pendingNotificationRoute: InAppNotificationRoute?
     /// The markdown file being read, or `nil`. Held at the root because the press that opens it
     /// happens inside a message row, which is recycled by a lazy list and cannot own a sheet —
@@ -160,7 +163,7 @@ struct RootView: View {
             }
         case let .failed(message):
             ContentUnavailableView {
-                Label("Hive couldn't start", systemImage: "exclamationmark.triangle")
+                Label("Steelbeach couldn't start", systemImage: "exclamationmark.triangle")
             } description: {
                 Text(message)
             }
@@ -173,15 +176,8 @@ struct RootView: View {
     /// ``ChannelListView``, with the app-wide resolvers injected above it — so a push in one
     /// tab is not a push in the other, and switching tabs does not unwind a stack.
     ///
-    /// Conversations and threads are read without the tab bar, which keeps the reading
-    /// surface exactly the height it is today. That matters more than it looks: the scroll
-    /// and keyboard behaviour of a conversation is arithmetic over the safe area, and a tab
-    /// bar under the composer would change it everywhere at once.
-    ///
-    /// *Which* screens those are is declared once, by the view that owns each stack —
-    /// ``ChannelListView/hidesTabBar`` — and not by the pushed screens themselves. Doing it
-    /// per pushed view is what produced the jump the owner reported on the way back; the
-    /// traces are in that property's documentation.
+    /// Each navigation stack reports when it is showing a conversation or thread. The
+    /// compact destination rail is then removed so reading surfaces keep their full height.
     private func tabs(engine: SyncEngine, store: BuzzEventStore) -> some View {
         InAppNotificationHost(
             store: store,
@@ -200,7 +196,8 @@ struct RootView: View {
                         engine: engine,
                         drafts: environment.drafts,
                         selfPubkey: environment.selfPubkeyHex,
-                        notificationRoute: $pendingNotificationRoute
+                        notificationRoute: $pendingNotificationRoute,
+                        hidesRootNavigationBar: $homeHidesNavigation
                     )
                 } label: {
                     label(for: .home)
@@ -209,7 +206,8 @@ struct RootView: View {
                     ActivityView(
                         store: store,
                         engine: engine,
-                        selfPubkey: environment.selfPubkeyHex
+                        selfPubkey: environment.selfPubkeyHex,
+                        hidesRootNavigationBar: $inboxHidesNavigation
                     )
                 } label: {
                     label(for: .activity)
@@ -218,10 +216,20 @@ struct RootView: View {
                     SearchView(
                         store: store,
                         engine: engine,
-                        selfPubkey: environment.selfPubkeyHex
+                        selfPubkey: environment.selfPubkeyHex,
+                        hidesRootNavigationBar: $searchHidesNavigation
                     )
                 } label: {
                     label(for: .search)
+                }
+            }
+            .toolbar(.hidden, for: .tabBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !selectedStackHidesNavigation {
+                    SteelbeachTabBar(selection: $tab)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, 6)
                 }
             }
             // A screen asked for from outside the app — Siri, Spotlight, the Shortcuts app —
@@ -263,6 +271,14 @@ struct RootView: View {
         }
     }
 
+    private var selectedStackHidesNavigation: Bool {
+        switch tab {
+        case .home: homeHidesNavigation
+        case .activity: inboxHidesNavigation
+        case .search: searchHidesNavigation
+        }
+    }
+
     @ViewBuilder
     private func label(for item: HomeTab) -> some View {
         switch item.icon(isSelected: tab == item) {
@@ -274,6 +290,50 @@ struct RootView: View {
             // the way the symbols either side of it do.
             Label(item.title, image: name)
         }
+    }
+}
+
+/// A compact navigation rail that leaves out the destination already on screen.
+private struct SteelbeachTabBar: View {
+    @Binding var selection: HomeTab
+
+    private var destinations: [HomeTab] {
+        switch selection {
+        case .home: [.activity, .search]
+        case .activity: [.home, .search]
+        case .search: [.home, .activity, .search]
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(destinations) { destination in
+                Button {
+                    selection = destination
+                } label: {
+                    VStack(spacing: 4) {
+                        GlyphView(
+                            destination.icon(isSelected: destination == selection),
+                            height: 22
+                        )
+                        Text(destination.title)
+                            .font(.hive(.caption, weight: .medium))
+                    }
+                    .foregroundStyle(destination == selection ? Color.white : Color.white.opacity(0.72))
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 7)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(destination == selection ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 8)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay {
+            Capsule().stroke(Color.white.opacity(0.14), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
     }
 }
 

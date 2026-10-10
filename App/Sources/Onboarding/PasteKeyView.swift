@@ -151,7 +151,7 @@ struct PasteKeyView: View {
 
     private var blurb: String {
         switch step {
-        case .relay: "A community is a relay. Point Hive at the one this key belongs on."
+        case .relay: "A community is a relay. Point Steelbeach at the one this key belongs on."
         case .key, .working: "Paste the secret key you already use. Nothing is stored until "
             + "you tap Connect."
         }
@@ -167,7 +167,7 @@ struct PasteKeyView: View {
 
     private var blockedNote: String? {
         step == .relay && !relayIsUsable && !relayURLString.isEmpty
-            ? "That isn't a relay address Hive can use."
+            ? "That isn't a relay address Steelbeach can use."
             : nil
     }
 

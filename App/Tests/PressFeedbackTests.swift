@@ -18,7 +18,7 @@ import UIKit
 ///   row lands 2.5% narrower than the resting one, and in the middle of where it was;
 /// - **Reduce Motion takes the shrink and leaves the light**, which is what that setting
 ///   actually asks for — a cross-fade in place of a movement, not the absence of feedback;
-/// - only a control with edges of its own washes: the owner had the amber taken off the
+/// - only a control with edges of its own washes: the owner had the grey treatment softened the
 ///   sidebar and off a message entirely;
 /// - a press outlives the curve that draws it by nothing at all — it may never stand in front
 ///   of the action it is feedback for;

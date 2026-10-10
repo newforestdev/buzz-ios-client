@@ -73,7 +73,7 @@ struct FileAttachmentCard: View {
         .alert("Couldn't Open File", isPresented: $showsFailure) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Hive couldn't download this attachment. Check your connection and try again.")
+            Text("Steelbeach couldn't download this attachment. Check your connection and try again.")
         }
     }
 }
