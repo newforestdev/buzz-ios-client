@@ -17,7 +17,8 @@ struct PushGatewayClient: Sendable {
     /// Builds a client from the delivery endpoint carried by the relay's NIP-11 push
     /// descriptor (for example `https://push.steelbeach.net/v1/deliveries/apns`). The
     /// gateway control routes share that origin and the `/v1` API prefix.
-    init?(deliveryURL: URL, transport: any HTTPTransport = URLSessionHTTPTransport(), enrollmentJournal: any PushEnrollmentJournal = KeychainPushEnrollmentJournal.shared) {
+    init?(deliveryURL: URL, transport: any HTTPTransport = URLSessionHTTPTransport(),
+          enrollmentJournal: any PushEnrollmentJournal = KeychainPushEnrollmentJournal.shared) {
         guard deliveryURL.scheme?.lowercased() == "https",
               deliveryURL.path.hasSuffix("/v1/deliveries/apns"),
               let host = deliveryURL.host
@@ -30,7 +31,8 @@ struct PushGatewayClient: Sendable {
         self.init(baseURL: origin, transport: transport, enrollmentJournal: enrollmentJournal)
     }
 
-    init?(baseURL: URL, transport: any HTTPTransport = URLSessionHTTPTransport(), enrollmentJournal: any PushEnrollmentJournal = KeychainPushEnrollmentJournal.shared) {
+    init?(baseURL: URL, transport: any HTTPTransport = URLSessionHTTPTransport(),
+          enrollmentJournal: any PushEnrollmentJournal = KeychainPushEnrollmentJournal.shared) {
         guard baseURL.scheme?.lowercased() == "https",
               baseURL.host != nil,
               baseURL.user == nil,
@@ -118,6 +120,11 @@ struct PushGatewayClient: Sendable {
         )
         guard status == 201 else {
             if [400, 401, 404].contains(status) { enrollmentJournal.clear() }
+            if status == 409,
+               let envelope = try? JSONDecoder().decode(GatewayErrorEnvelope.self, from: data),
+               envelope.error == "installation_conflict" {
+                throw PushGatewayError.installationConflict
+            }
             throw PushGatewayError.httpStatus(status)
         }
         guard let response = try? JSONDecoder().decode(EnrollmentResponse.self, from: data) else {
@@ -172,8 +179,8 @@ struct PushGatewayClient: Sendable {
         attester: any PushAttesting
     ) async throws {
         let challenge = try await self.challenge()
-        let nextEpoch = installation.endpointEpoch + 1
-        guard nextEpoch > installation.endpointEpoch else { throw PushGatewayError.invalidRequest }
+        let (nextEpoch, overflow) = installation.endpointEpoch.addingReportingOverflow(1)
+        guard !overflow, nextEpoch > installation.endpointEpoch else { throw PushGatewayError.invalidRequest }
         let transcript = PushAttestationTranscript.revokeInstallation(
             audience: "https://push.buzz.xyz/v1/installations/revoke",
             challenge: challenge,
@@ -203,8 +210,8 @@ struct PushGatewayClient: Sendable {
         guard !token.isEmpty, token.count <= 512 else { throw PushGatewayError.invalidToken }
         let challenge = try await self.challenge()
         let endpoint = token.map { String(format: "%02x", $0) }.joined()
-        let nextEpoch = installation.endpointEpoch + 1
-        guard nextEpoch > installation.endpointEpoch else { throw PushGatewayError.invalidRequest }
+        let (nextEpoch, overflow) = installation.endpointEpoch.addingReportingOverflow(1)
+        guard !overflow, nextEpoch > installation.endpointEpoch else { throw PushGatewayError.invalidRequest }
         let transcript = PushAttestationTranscript.rotateEndpoint(
             audience: "https://push.buzz.xyz/v1/installations/endpoint",
             challenge: challenge,
@@ -301,7 +308,7 @@ struct PushGatewayClient: Sendable {
         URL(string: path, relativeTo: baseURL)!.absoluteURL
     }
 
-    private var gatewayOrigin: String {
+    var gatewayOrigin: String {
         var components = URLComponents()
         components.scheme = baseURL.scheme
         components.host = baseURL.host
@@ -328,6 +335,8 @@ enum PushGatewayError: Error, Equatable {
     case invalidRequest
     case invalidResponse
     case pendingEnrollment
+    case installationConflict
+    case missingInstallationCredentials
     case journalFailure
     case httpStatus(Int)
 }
@@ -341,7 +350,15 @@ enum PushAttestationTranscript {
         endpoint: String,
         expiresAt: Int64
     ) -> String {
-        "buzz.push.enroll.v1\n{\"v\":1,\"audience\":\(quoted(audience)),\"challenge_id\":\(quoted(challenge.id)),\"challenge\":\(quoted(challenge.value)),\"key_id\":\(quoted(keyID)),\"app_profile\":\(quoted(profile)),\"endpoint\":\(quoted(endpoint)),\"endpoint_epoch\":1,\"expires_at\":\(expiresAt)}"
+        "buzz.push.enroll.v1\n{\"v\":1"
+            + ",\"audience\":\(quoted(audience))"
+            + ",\"challenge_id\":\(quoted(challenge.id))"
+            + ",\"challenge\":\(quoted(challenge.value))"
+            + ",\"key_id\":\(quoted(keyID))"
+            + ",\"app_profile\":\(quoted(profile))"
+            + ",\"endpoint\":\(quoted(endpoint))"
+            + ",\"endpoint_epoch\":1"
+            + ",\"expires_at\":\(expiresAt)}"
     }
 
     static func delegation(
@@ -353,7 +370,16 @@ enum PushAttestationTranscript {
         notBefore: Int64,
         expiresAt: Int64
     ) -> String {
-        "buzz.push.delegate.v1\n{\"v\":1,\"audience\":\(quoted(audience)),\"challenge_id\":\(quoted(challenge.id)),\"challenge\":\(quoted(challenge.value)),\"installation_handle\":\(quoted(installation.handle)),\"endpoint_epoch\":\(installation.endpointEpoch),\"generation\":\(generation),\"relay_pubkey\":\(quoted(relayPubkey)),\"not_before\":\(notBefore),\"expires_at\":\(expiresAt)}"
+        "buzz.push.delegate.v1\n{\"v\":1"
+            + ",\"audience\":\(quoted(audience))"
+            + ",\"challenge_id\":\(quoted(challenge.id))"
+            + ",\"challenge\":\(quoted(challenge.value))"
+            + ",\"installation_handle\":\(quoted(installation.handle))"
+            + ",\"endpoint_epoch\":\(installation.endpointEpoch)"
+            + ",\"generation\":\(generation)"
+            + ",\"relay_pubkey\":\(quoted(relayPubkey))"
+            + ",\"not_before\":\(notBefore)"
+            + ",\"expires_at\":\(expiresAt)}"
     }
 
     static func revokeInstallation(
@@ -362,7 +388,13 @@ enum PushAttestationTranscript {
         installation: PushInstallation,
         newEpoch: Int64
     ) -> String {
-        "buzz.push.revoke-installation.v1\n{\"v\":1,\"audience\":\(quoted(audience)),\"challenge_id\":\(quoted(challenge.id)),\"challenge\":\(quoted(challenge.value)),\"installation_handle\":\(quoted(installation.handle)),\"endpoint_epoch\":\(installation.endpointEpoch),\"new_endpoint_epoch\":\(newEpoch)}"
+        "buzz.push.revoke-installation.v1\n{\"v\":1"
+            + ",\"audience\":\(quoted(audience))"
+            + ",\"challenge_id\":\(quoted(challenge.id))"
+            + ",\"challenge\":\(quoted(challenge.value))"
+            + ",\"installation_handle\":\(quoted(installation.handle))"
+            + ",\"endpoint_epoch\":\(installation.endpointEpoch)"
+            + ",\"new_endpoint_epoch\":\(newEpoch)}"
     }
 
     static func rotateEndpoint(
@@ -372,7 +404,14 @@ enum PushAttestationTranscript {
         newEpoch: Int64,
         endpoint: String
     ) -> String {
-        "buzz.push.rotate-endpoint.v1\n{\"v\":1,\"audience\":\(quoted(audience)),\"challenge_id\":\(quoted(challenge.id)),\"challenge\":\(quoted(challenge.value)),\"installation_handle\":\(quoted(installation.handle)),\"endpoint_epoch\":\(installation.endpointEpoch),\"new_endpoint_epoch\":\(newEpoch),\"endpoint\":\(quoted(endpoint))}"
+        "buzz.push.rotate-endpoint.v1\n{\"v\":1"
+            + ",\"audience\":\(quoted(audience))"
+            + ",\"challenge_id\":\(quoted(challenge.id))"
+            + ",\"challenge\":\(quoted(challenge.value))"
+            + ",\"installation_handle\":\(quoted(installation.handle))"
+            + ",\"endpoint_epoch\":\(installation.endpointEpoch)"
+            + ",\"new_endpoint_epoch\":\(newEpoch)"
+            + ",\"endpoint\":\(quoted(endpoint))}"
     }
 
     static func revokeDelegation(
@@ -382,15 +421,35 @@ enum PushAttestationTranscript {
         relayPubkey: String,
         generation: Int64
     ) -> String {
-        "buzz.push.revoke-delegation.v1\n{\"v\":1,\"audience\":\(quoted(audience)),\"challenge_id\":\(quoted(challenge.id)),\"challenge\":\(quoted(challenge.value)),\"installation_handle\":\(quoted(installation.handle)),\"relay_pubkey\":\(quoted(relayPubkey)),\"generation\":\(generation)}"
+        "buzz.push.revoke-delegation.v1\n{\"v\":1"
+            + ",\"audience\":\(quoted(audience))"
+            + ",\"challenge_id\":\(quoted(challenge.id))"
+            + ",\"challenge\":\(quoted(challenge.value))"
+            + ",\"installation_handle\":\(quoted(installation.handle))"
+            + ",\"relay_pubkey\":\(quoted(relayPubkey))"
+            + ",\"generation\":\(generation)}"
     }
 
     private static func quoted(_ string: String) -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes]
-        let data = try! encoder.encode([string])
-        let array = String(decoding: data, as: UTF8.self)
-        return String(array.dropFirst().dropLast())
+        var result = "\""
+        for scalar in string.unicodeScalars {
+            switch scalar {
+            case "\"": result += "\\\""
+            case "\\": result += "\\\\"
+            case "\n": result += "\\n"
+            case "\r": result += "\\r"
+            case "\t": result += "\\t"
+            case "\u{08}": result += "\\b"
+            case "\u{0C}": result += "\\f"
+            default:
+                if scalar.value < 0x20 {
+                    result += String(format: "\\u%04x", scalar.value)
+                } else {
+                    result.unicodeScalars.append(scalar)
+                }
+            }
+        }
+        return result + "\""
     }
 }
 
@@ -569,3 +628,5 @@ private struct EnrollmentResponse: Decodable {
 }
 private struct DelegationResponse: Decodable { let endpointGrant: String; enum CodingKeys: String, CodingKey { case endpointGrant = "endpoint_grant" } }
 private struct StatusResponse: Decodable { let status: String }
+
+private struct GatewayErrorEnvelope: Decodable { let error: String? }

@@ -25,13 +25,16 @@ struct OutboxMediaTests {
             media: [media]
         )
 
-        let rows = try await harness.store.reader.read { db -> [Row] in
+        let rows = try await harness.store.reader.read { db in
             try Row.fetchAll(db, sql: "SELECT * FROM outbox_media WHERE event_id = ?", arguments: [entry.id])
+                .map { row -> MediaRow in
+                    MediaRow(sha256: row["sha256"], ordinal: row["ordinal"], state: row["state"])
+                }
         }
         #expect(rows.count == 1)
-        #expect(rows[0]["sha256"] == media.sha256)
-        #expect(rows[0]["ordinal"] == media.ordinal)
-        #expect(rows[0]["state"] == OutboxMediaState.staged.rawValue)
+        #expect(rows[0].sha256 == media.sha256)
+        #expect(rows[0].ordinal == media.ordinal)
+        #expect(rows[0].state == OutboxMediaState.staged.rawValue)
 
         try await harness.store.confirmSent(entry.event)
         #expect(try await harness.store.outboxMedia(eventID: entry.id).isEmpty)
@@ -381,4 +384,10 @@ private struct PolicyRejectingMediaUploader: MediaUploading {
     func upload(data _: Data, mimeType _: String, filename _: String?) async throws -> BlobDescriptor {
         throw MediaUploadError.rejectedByPolicy
     }
+}
+
+private struct MediaRow: Sendable {
+    let sha256: String
+    let ordinal: Int
+    let state: String
 }

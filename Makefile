@@ -9,6 +9,8 @@ bootstrap:
 
 generate:
 	xcodegen generate
+	mkdir -p Hive.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+	cp Config/Package.resolved Hive.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # Refresh the pins Xcode Cloud builds against. Run this after changing any
 # dependency version — `Config/Package.resolved` is committed precisely because

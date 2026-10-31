@@ -11,6 +11,7 @@ enum PushLeaseBuilder {
         let d: String
         let expiresAt: Int64
         let generation: Int64
+        let previewLease: PushPreviewLease
     }
 
     static func build(
@@ -35,14 +36,14 @@ enum PushLeaseBuilder {
 
         let supportedKinds = descriptor.pushEligibleKinds.sorted()
         guard !supportedKinds.isEmpty, supportedKinds.count <= 16 else { throw PushLeaseError.invalidInput }
-        let ignoreSelf = [LeaseFilter(kinds: supportedKinds, authors: [selfPubkey])]
+        let kinds = supportedKinds.map { EventKind(rawValue: $0) }
+        let ignoreSelf = [Filter(authors: [selfPubkey], kinds: kinds)]
         guard directMessageChannelIDs.allSatisfy(Self.isCanonicalUUIDv4) else {
             throw PushLeaseError.invalidDirectMessageChannel
         }
         var subscriptions = [
-            LeaseSubscription(
-                filter: LeaseFilter(kinds: supportedKinds, pubkeys: [selfPubkey]),
-                className: "default",
+            PushLeaseSubscription(
+                filter: Filter(kinds: kinds, tagQueries: ["p": [selfPubkey]]),
                 ignore: ignoreSelf
             ),
         ]
@@ -58,9 +59,9 @@ enum PushLeaseBuilder {
             for start in stride(from: 0, to: dmChannels.count, by: maxH) {
                 let end = min(start + maxH, dmChannels.count)
                 subscriptions.append(
-                    LeaseSubscription(
-                        filter: LeaseFilter(kinds: dmKinds, channelIDs: Array(dmChannels[start..<end])),
-                        className: "default",
+                    PushLeaseSubscription(
+                        filter: Filter(kinds: dmKinds.map { EventKind(rawValue: $0) },
+                                       tagQueries: ["h": Array(dmChannels[start..<end])]),
                         ignore: ignoreSelf
                     )
                 )
@@ -98,7 +99,8 @@ enum PushLeaseBuilder {
             tags: tags,
             d: installationID,
             expiresAt: expiresAt,
-            generation: generation
+            generation: generation,
+            previewLease: PushPreviewLease(active: true, expiresAt: expiresAt, subscriptions: subscriptions)
         )
     }
 
@@ -127,30 +129,9 @@ private struct LeasePayload: Encodable {
     let endpoint: String
     let generation: Int64
     let active: Bool
-    let subscriptions: [LeaseSubscription]
+    let subscriptions: [PushLeaseSubscription]
     enum CodingKeys: String, CodingKey {
         case v, origin, transport, endpoint, generation, active, subscriptions
         case appProfile = "app_profile"
     }
-}
-
-private struct LeaseSubscription: Encodable {
-    let filter: LeaseFilter
-    let className: String
-    let ignore: [LeaseFilter]?
-    enum CodingKeys: String, CodingKey { case filter, ignore, className = "class" }
-}
-
-private struct LeaseFilter: Encodable {
-    var kinds: [Int]?
-    var pubkeys: [String]?
-    var authors: [String]?
-    var channelIDs: [String]?
-    init(kinds: [Int]? = nil, pubkeys: [String]? = nil, authors: [String]? = nil, channelIDs: [String]? = nil) {
-        self.kinds = kinds
-        self.pubkeys = pubkeys
-        self.authors = authors
-        self.channelIDs = channelIDs
-    }
-    enum CodingKeys: String, CodingKey { case kinds, authors; case pubkeys = "#p"; case channelIDs = "#h" }
 }

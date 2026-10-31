@@ -14,6 +14,10 @@ struct RootView: View {
     @State private var homeHidesNavigation = false
     @State private var inboxHidesNavigation = false
     @State private var searchHidesNavigation = false
+    @State private var isHomeComposeAvailable = false
+    @State private var showsNewDirectMessage = false
+    @State private var showsCreateChannel = false
+    @State private var isComposeOpen = false
     @State private var pendingNotificationRoute: InAppNotificationRoute?
     /// The markdown file being read, or `nil`. Held at the root because the press that opens it
     /// happens inside a message row, which is recycled by a lazy list and cannot own a sheet —
@@ -177,7 +181,7 @@ struct RootView: View {
     /// tab is not a push in the other, and switching tabs does not unwind a stack.
     ///
     /// Each navigation stack reports when it is showing a conversation or thread. The
-    /// compact destination rail is then removed so reading surfaces keep their full height.
+    /// bottom navigation row is then removed so reading surfaces keep their full height.
     private func tabs(engine: SyncEngine, store: BuzzEventStore) -> some View {
         InAppNotificationHost(
             store: store,
@@ -189,48 +193,72 @@ struct RootView: View {
             tab = .home
             pendingNotificationRoute = route
         } content: {
-            TabView(selection: $tab) {
-                Tab(value: HomeTab.home) {
-                    ChannelListView(
-                        store: store,
-                        engine: engine,
-                        drafts: environment.drafts,
-                        selfPubkey: environment.selfPubkeyHex,
-                        notificationRoute: $pendingNotificationRoute,
-                        hidesRootNavigationBar: $homeHidesNavigation
-                    )
-                } label: {
-                    label(for: .home)
+            // Reserve actual layout space below the TabView. An inset outside TabView
+            // is not consistently forwarded to its hosted navigation stacks, leaving the
+            // final scroll rows behind the custom controls.
+            VStack(spacing: 0) {
+                TabView(selection: $tab) {
+                    Tab(value: HomeTab.home) {
+                        ChannelListView(
+                            store: store,
+                            engine: engine,
+                            drafts: environment.drafts,
+                            selfPubkey: environment.selfPubkeyHex,
+                            notificationRoute: $pendingNotificationRoute,
+                            hidesRootNavigationBar: $homeHidesNavigation,
+                            homeComposeAvailable: $isHomeComposeAvailable,
+                            showsNewDirectMessage: $showsNewDirectMessage,
+                            showsCreateChannel: $showsCreateChannel
+                        )
+                        .toolbar(.hidden, for: .tabBar)
+                    } label: {
+                        label(for: .home)
+                    }
+                    Tab(value: HomeTab.activity) {
+                        ActivityView(
+                            store: store,
+                            engine: engine,
+                            selfPubkey: environment.selfPubkeyHex,
+                            hidesRootNavigationBar: $inboxHidesNavigation
+                        )
+                        .toolbar(.hidden, for: .tabBar)
+                    } label: {
+                        label(for: .activity)
+                    }
+                    Tab(value: HomeTab.search) {
+                        SearchView(
+                            store: store,
+                            engine: engine,
+                            selfPubkey: environment.selfPubkeyHex,
+                            hidesRootNavigationBar: $searchHidesNavigation
+                        )
+                        .toolbar(.hidden, for: .tabBar)
+                    } label: {
+                        label(for: .search)
+                    }
                 }
-                Tab(value: HomeTab.activity) {
-                    ActivityView(
-                        store: store,
-                        engine: engine,
-                        selfPubkey: environment.selfPubkeyHex,
-                        hidesRootNavigationBar: $inboxHidesNavigation
-                    )
-                } label: {
-                    label(for: .activity)
+                .toolbar(.hidden, for: .tabBar)
+                .overlay {
+                    if isComposeOpen {
+                        Button {
+                            withAnimation(HomeComposeButton.motion) { isComposeOpen = false }
+                        } label: {
+                            Color.black.opacity(HomeComposeButton.scrimOpacity)
+                                .ignoresSafeArea()
+                        }
+                        .buttonStyle(.hiveNoPress)
+                        .accessibilityLabel("Close")
+                    }
                 }
-                Tab(value: HomeTab.search, role: .search) {
-                    SearchView(
-                        store: store,
-                        engine: engine,
-                        selfPubkey: environment.selfPubkeyHex,
-                        hidesRootNavigationBar: $searchHidesNavigation
-                    )
-                } label: {
-                    label(for: .search)
+
+                if !selectedStackHidesNavigation {
+                    bottomNavigation
                 }
             }
-            .toolbar(.hidden, for: .tabBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !selectedStackHidesNavigation {
-                    SteelbeachTabBar(selection: $tab)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
-                        .padding(.bottom, 6)
-                }
+            .hiveScreenGround()
+            .onChange(of: tab) { _, _ in isComposeOpen = false }
+            .onChange(of: selectedStackHidesNavigation) { _, hides in
+                if hides { isComposeOpen = false }
             }
             // A screen asked for from outside the app — Siri, Spotlight, the Shortcuts app —
             // arrives as a destination on ``AppNavigator``. This half selects the tab that
@@ -279,61 +307,56 @@ struct RootView: View {
         }
     }
 
+    /// One layout owns the tab controls and compose button, so their centres share a row.
+    private var bottomNavigation: some View {
+        HStack(alignment: .center, spacing: 12) {
+            HStack(spacing: 4) {
+                ForEach(HomeTab.allCases) { destination in
+                    Button {
+                        tab = destination
+                    } label: {
+                        GlyphView(destination.icon(isSelected: tab == destination), height: 24)
+                            .foregroundStyle(tab == destination ? Color.hiveAccent : Color.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background {
+                                if tab == destination {
+                                    Capsule().fill(Color.primary.opacity(0.08))
+                                }
+                            }
+                            .contentShape(.capsule)
+                    }
+                    .buttonStyle(.hivePress(.control, in: .capsule))
+                    .accessibilityLabel(destination.title)
+                    .accessibilityAddTraits(tab == destination ? .isSelected : [])
+                }
+            }
+            .padding(4)
+            .glassEffect(.regular, in: .capsule)
+
+            if tab == .home, isHomeComposeAvailable {
+                HomeComposeButton(
+                    newMessage: { showsNewDirectMessage = true },
+                    newChannel: { showsCreateChannel = true },
+                    isOpen: $isComposeOpen
+                )
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
+
     @ViewBuilder
     private func label(for item: HomeTab) -> some View {
         switch item.icon(isSelected: tab == item) {
         case let .symbol(name):
-            Label(item.title, systemImage: name)
+            Image(systemName: name)
+                .accessibilityLabel(item.title)
         case let .asset(name):
-            // `Label(_:image:)`, so the tab bar gets an image it can size and tint itself.
-            // The asset is template-rendered, which is what makes it take the selected tint
-            // the way the symbols either side of it do.
-            Label(item.title, image: name)
+            Image(name)
+                .accessibilityLabel(item.title)
         }
-    }
-}
-
-/// A compact navigation rail that leaves out the destination already on screen.
-private struct SteelbeachTabBar: View {
-    @Binding var selection: HomeTab
-
-    private var destinations: [HomeTab] {
-        switch selection {
-        case .home: [.activity, .search]
-        case .activity: [.home, .search]
-        case .search: [.home, .activity, .search]
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(destinations) { destination in
-                Button {
-                    selection = destination
-                } label: {
-                    VStack(spacing: 4) {
-                        GlyphView(
-                            destination.icon(isSelected: destination == selection),
-                            height: 22
-                        )
-                        Text(destination.title)
-                            .font(.hive(.caption, weight: .medium))
-                    }
-                    .foregroundStyle(destination == selection ? Color.white : Color.white.opacity(0.72))
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                    .padding(.vertical, 7)
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(destination == selection ? .isSelected : [])
-            }
-        }
-        .padding(.horizontal, 8)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay {
-            Capsule().stroke(Color.white.opacity(0.14), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
     }
 }
 

@@ -451,7 +451,9 @@ final class AppEnvironment {
         )
         self.engine = engine
         mediaReadAuthorizer = makeMediaReadAuthorizer(signer: signer, websocketURL: websocketURL)
-        await installMediaReadAuthorizer(mediaReadAuthorizer)
+        await installMediaReadAuthorizer(
+            mediaReadAuthorizer, cacheScope: intendedPubkey.map { "\(community.id)|\($0)" }
+        )
         await installMediaStagingDirectory(mediaStagingStore.directory)
         await engine.resumeMediaUploads()
         heartbeat = PresenceHeartbeat(publisher: engine)

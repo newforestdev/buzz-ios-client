@@ -13,15 +13,18 @@ final class PushLeaseCoordinator {
     private let defaults: UserDefaults
     private let attester: any PushAttesting
     private let transport = URLSessionHTTPTransport()
+    private let recovery: PushEnrollmentRecovery
     private var activationInFlight = false
     private var revocationInFlight = false
     private var operationRevision = 0
     private let renewalWindow: Int64 = 7 * 24 * 60 * 60
     private let maximumTimestampLead: Int64 = 30
 
-    init(defaults: UserDefaults = .standard, attester: any PushAttesting = ApplePushAttester()) {
+    init(defaults: UserDefaults = .standard, attester: any PushAttesting = ApplePushAttester(),
+         installationStore: any PushInstallationStore = KeychainPushInstallationStore.shared) {
         self.defaults = defaults
         self.attester = attester
+        recovery = PushEnrollmentRecovery(store: installationStore)
     }
 
     func activate(
@@ -30,7 +33,7 @@ final class PushLeaseCoordinator {
         signer: any EventSigner,
         engine: SyncEngine,
         directMessageChannelIDs: [String] = []
-    ) async throws {
+    ) async throws -> PushPreviewLease {
         let revision = operationRevision
         while activationInFlight || revocationInFlight {
             try check(revision)
@@ -66,68 +69,23 @@ final class PushLeaseCoordinator {
            saved.isActive == true,
            saved.activeLeaseFingerprint == fingerprint,
            let activeLeaseExpiresAt = saved.activeLeaseExpiresAt,
-           activeLeaseExpiresAt > now + renewalWindow {
-            return
+           activeLeaseExpiresAt > now + renewalWindow,
+           let previewLease = saved.previewLease, previewLease.isActive(at: now) {
+            return previewLease
         }
-        let savedInstallation = loadInstallation()
-        var installation: PushInstallation
-        if let savedInstallation,
-           savedInstallation.profile == PushGatewayClient.appProfile,
-           savedInstallation.deliveryURL == deliveryURL.absoluteString,
-           savedInstallation.installation.expiresAt > Int64(Date().timeIntervalSince1970) {
-            if savedInstallation.tokenHash == tokenHash {
-                installation = savedInstallation.installation
-            } else {
-                installation = try await gateway.rotateEndpoint(
-                    token: token,
-                    installation: savedInstallation.installation,
-                    attester: attester
-                )
-                try check(revision)
-                saveInstallation(installation, tokenHash: tokenHash, deliveryURL: deliveryURL)
-            }
-        } else {
-            let expiry = Int64(Date().timeIntervalSince1970) + 30 * 24 * 60 * 60
-            installation = try await gateway.enroll(
-                token: token,
-                profile: PushGatewayClient.appProfile,
-                expiresAt: expiry,
-                attester: attester
-            )
-            try check(revision)
-            saveInstallation(installation, tokenHash: tokenHash, deliveryURL: deliveryURL)
-        }
-
-        var leaseState = loadLease(for: stateKey) ?? SavedLeaseState(
-            origin: descriptor.origin,
-            ownerPubkey: pubkey,
-            relayPubkey: relayPubkey,
-            deliveryURL: deliveryURL.absoluteString,
-            installation: installation,
-            d: Self.randomID(),
-            generation: 0,
-            executorKeyID: descriptor.currentKey?.id ?? "",
-            executorPubkey: descriptor.currentKey?.pubkey ?? ""
+        var installation = try await prepareInstallation(
+            token: token, deliveryURL: deliveryURL, gateway: gateway, revision: revision
         )
-        guard !leaseState.d.isEmpty,
-              let executorKeyID = descriptor.currentKey?.id,
-              let executorPubkey = descriptor.currentKey?.pubkey
-        else { throw PushRegistrationError.invalidDescriptor }
-        leaseState.installation = installation
-        leaseState.relayPubkey = relayPubkey
-        leaseState.deliveryURL = deliveryURL.absoluteString
-        leaseState.executorKeyID = executorKeyID
-        leaseState.executorPubkey = executorPubkey
-        guard let nextGeneration = PushLeaseGeneration.next(after: leaseState.generation) else {
-            throw PushRegistrationError.invalidDescriptor
-        }
-        leaseState.generation = nextGeneration
-        // Persist the next generation before the gateway accepts it. If the process is killed
-        // after server admission, the next attempt advances again instead of replaying a
-        // consumed generation.
-        saveLease(leaseState, for: stateKey)
+
+        var leaseState = try prepareLeaseState(
+            descriptor: descriptor, deliveryURL: deliveryURL, pubkey: pubkey,
+            stateKey: stateKey, installation: installation
+        )
 
         let expiry = Int64(Date().timeIntervalSince1970) + 30 * 24 * 60 * 60
+        // A replacement delegation may fence off the previous lease. Hide its
+        // snapshot before this await; only the successfully queued lease restores it.
+        PushPreviewCustody.clear()
         let grant = try await gateway.delegate(
             installation: installation,
             relayPubkey: relayPubkey,
@@ -157,12 +115,133 @@ final class PushLeaseCoordinator {
         leaseState.isActive = false
         leaseState.activeLeaseFingerprint = nil
         leaseState.activeLeaseExpiresAt = nil
+        try recovery.remember(installation, gateway: gateway, tokenHash: tokenHash)
         saveInstallation(installation, tokenHash: tokenHash, deliveryURL: deliveryURL)
         saveLease(leaseState, for: stateKey)
         gateway.completeEnrollmentJournal()
+        return try await queueLease(
+            descriptor: descriptor,
+            publication: LeasePublication(stateKey: stateKey, state: leaseState,
+                                          fingerprint: fingerprint, revision: revision, grant: grant),
+            signer: signer, engine: engine, directMessageChannelIDs: directMessageChannelIDs
+        )
+    }
+
+    private func prepareInstallation(
+        token: Data, deliveryURL: URL, gateway: PushGatewayClient, revision: Int
+    ) async throws -> PushInstallation {
+        let tokenHash = Data(SHA256.hash(data: token)).hexString
+        PushPreviewCustody.clear()
+        var savedInstallation = loadInstallation()
+        // Migrate the existing defaults record before it can be replaced. The
+        // Keychain archive survives loss of app defaults and keeps old issuers.
+        if let savedInstallation,
+           let issuerURL = URL(string: savedInstallation.deliveryURL),
+           let issuer = PushGatewayClient(deliveryURL: issuerURL, transport: transport) {
+            try recovery.remember(savedInstallation.installation, gateway: issuer,
+                                  tokenHash: savedInstallation.tokenHash)
+        }
+        if let saved = savedInstallation,
+           let issuerURL = URL(string: saved.deliveryURL),
+           let issuer = PushGatewayClient(deliveryURL: issuerURL, transport: transport),
+           let archived = try recovery.restoredRecord(for: saved.installation, gateway: issuer) {
+            // Recover a crash between the Keychain write and the defaults write,
+            // including the endpoint epoch/token hash after token rotation.
+            savedInstallation = SavedInstallation(
+                installation: archived.installation, tokenHash: archived.tokenHash,
+                deliveryURL: saved.deliveryURL, profile: archived.installation.profile
+            )
+        }
+        var installation: PushInstallation
+        if let savedInstallation,
+           savedInstallation.profile == PushGatewayClient.appProfile,
+           savedInstallation.deliveryURL == deliveryURL.absoluteString,
+           savedInstallation.installation.expiresAt > Int64(Date().timeIntervalSince1970) {
+            if savedInstallation.tokenHash == tokenHash {
+                installation = savedInstallation.installation
+            } else {
+                installation = try await gateway.rotateEndpoint(
+                    token: token,
+                    installation: savedInstallation.installation,
+                    attester: attester
+                )
+                try recovery.remember(installation, gateway: gateway, tokenHash: tokenHash)
+                saveInstallation(installation, tokenHash: tokenHash, deliveryURL: deliveryURL)
+                try check(revision)
+            }
+        } else {
+            let expiry = Int64(Date().timeIntervalSince1970) + 30 * 24 * 60 * 60
+            installation = try await recovery.enroll(
+                gateway: gateway,
+                token: token,
+                expiresAt: expiry,
+                attester: attester
+            )
+            try check(revision)
+            saveInstallation(installation, tokenHash: tokenHash, deliveryURL: deliveryURL)
+        }
+
+        return installation
+    }
+
+    private func prepareLeaseState(
+        descriptor: RelayPushDescriptor, deliveryURL: URL, pubkey: String,
+        stateKey: String, installation: PushInstallation
+    ) throws -> SavedLeaseState {
+        guard let relayPubkey = descriptor.currentKey?.pubkey else { throw PushRegistrationError.invalidDescriptor }
+        var leaseState = loadLease(for: stateKey) ?? SavedLeaseState(
+            origin: descriptor.origin,
+            ownerPubkey: pubkey,
+            relayPubkey: relayPubkey,
+            deliveryURL: deliveryURL.absoluteString,
+            installation: installation,
+            d: Self.randomID(),
+            generation: 0,
+            executorKeyID: descriptor.currentKey?.id ?? "",
+            executorPubkey: descriptor.currentKey?.pubkey ?? ""
+        )
+        guard !leaseState.d.isEmpty,
+              let executorKeyID = descriptor.currentKey?.id,
+              let executorPubkey = descriptor.currentKey?.pubkey
+        else { throw PushRegistrationError.invalidDescriptor }
+        leaseState.installation = installation
+        leaseState.relayPubkey = relayPubkey
+        leaseState.deliveryURL = deliveryURL.absoluteString
+        leaseState.executorKeyID = executorKeyID
+        leaseState.executorPubkey = executorPubkey
+        guard let nextGeneration = PushLeaseGeneration.next(after: leaseState.generation) else {
+            throw PushRegistrationError.invalidDescriptor
+        }
+        leaseState.generation = nextGeneration
+        // Persist the next generation before the gateway accepts it. If the process is killed
+        // after server admission, the next attempt advances again instead of replaying a
+        // consumed generation.
+        saveLease(leaseState, for: stateKey)
+
+        return leaseState
+    }
+}
+
+extension PushLeaseCoordinator {
+    private func queueLease(
+        descriptor: RelayPushDescriptor, publication: LeasePublication,
+        signer: any EventSigner, engine: SyncEngine, directMessageChannelIDs: [String]
+    ) async throws -> PushPreviewLease {
+        let stateKey = publication.stateKey
+        let leaseState = publication.state
+        let installation = leaseState.installation
+        let gatewayURL = try Self.deliveryURL(from: leaseState.deliveryURL)
+        guard let gateway = PushGatewayClient(deliveryURL: gatewayURL, transport: transport) else {
+            throw PushRegistrationError.invalidDescriptor
+        }
+        let revision = publication.revision
+        let fingerprint = publication.fingerprint
+        let pubkey = leaseState.ownerPubkey
+        let relayPubkey = leaseState.relayPubkey
+        let expiry = installation.expiresAt
         let lease = try await PushLeaseBuilder.build(
             descriptor: descriptor,
-            endpointGrant: grant,
+            endpointGrant: publication.grant,
             selfPubkey: pubkey,
             generation: leaseState.generation,
             expiresAt: expiry,
@@ -194,7 +273,14 @@ final class PushLeaseCoordinator {
         publishedState.isActive = true
         publishedState.activeLeaseFingerprint = fingerprint
         publishedState.activeLeaseExpiresAt = expiry
+        publishedState.previewLease = lease.previewLease
         saveLease(publishedState, for: stateKey)
+        return lease.previewLease
+    }
+
+    private static func deliveryURL(from raw: String) throws -> URL {
+        guard let url = URL(string: raw) else { throw PushRegistrationError.invalidDescriptor }
+        return url
     }
 
     func cancelPendingActivation() { operationRevision &+= 1 }
@@ -389,6 +475,7 @@ private struct SavedLeaseState: Codable {
     var isActive: Bool? = nil
     var activeLeaseFingerprint: String? = nil
     var activeLeaseExpiresAt: Int64? = nil
+    var previewLease: PushPreviewLease? = nil
 }
 
 enum PushRegistrationError: Error { case unsupportedRelay, invalidDescriptor, busy, clockTooFarAhead }
@@ -406,4 +493,12 @@ enum PushLeaseTimestamp {
         guard let afterLast = PushLeaseGeneration.next(after: last) else { return nil }
         return max(now, afterLast)
     }
+}
+
+private struct LeasePublication {
+    let stateKey: String
+    let state: SavedLeaseState
+    let fingerprint: String
+    let revision: Int
+    let grant: String
 }

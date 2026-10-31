@@ -63,12 +63,11 @@ struct ChannelListView: View {
     @State var showAccount = false
     /// Whether the channel browser is up — the Channels heading's `+`.
     @State var showsBrowseChannels = false
-    /// Whether the new-channel sheet is up. No trigger sets it from this screen any
-    /// more — creating moved inside the browser — but the seam stays attached: it is
-    /// the documented adoption point for the sheet, and a fixture can still drive it.
-    @State var showsCreateChannel = false
-    /// Whether the new-direct-message sheet is up.
-    @State var showsNewDirectMessage = false
+    /// The tab accessory owns its two create actions; these bindings present their sheets here.
+    @Binding var showsCreateChannel: Bool
+    @Binding var showsNewDirectMessage: Bool
+    /// Lets the tab accessory appear only after the directory reaches the conversations screen.
+    @Binding private var homeComposeAvailable: Bool
     /// Drives the Later screen and keeps the scheduled alerts in step. Built here rather
     /// than inside the screen so the shortcut card's count is live whether or not anyone
     /// has opened it.
@@ -111,12 +110,18 @@ struct ChannelListView: View {
         drafts: ComposerDrafts? = nil,
         selfPubkey: String?,
         notificationRoute: Binding<InAppNotificationRoute?> = .constant(nil),
-        hidesRootNavigationBar: Binding<Bool> = .constant(false)
+        hidesRootNavigationBar: Binding<Bool> = .constant(false),
+        homeComposeAvailable: Binding<Bool>,
+        showsNewDirectMessage: Binding<Bool>,
+        showsCreateChannel: Binding<Bool>
     ) {
         self.store = store
         self.engine = engine
         _notificationRoute = notificationRoute
         _hidesRootNavigationBar = hidesRootNavigationBar
+        _homeComposeAvailable = homeComposeAvailable
+        _showsNewDirectMessage = showsNewDirectMessage
+        _showsCreateChannel = showsCreateChannel
         _draftsModel = State(initialValue: DraftsModel(store: store, drafts: drafts))
         _model = State(initialValue: ChannelListModel(store: store, selfPubkey: selfPubkey))
         _presence = State(initialValue: PresenceModel(store: engine.presenceStore))
@@ -165,16 +170,6 @@ struct ChannelListView: View {
                         .padding(.top, 8)
                     }
                 }
-                // The floating `+`, in the trailing corner directly above the search tab's
-                // own button — ``HomeComposeButton`` carries the measurements that put it
-                // there, and the reason it is drawn rather than a `Menu`.
-                //
-                // Declared inside the stack and on the *root* screen's content, so a pushed
-                // conversation covers it with no visibility flag to keep in step — the
-                // mistake ``ChannelListTabBar`` documents at length for the tab bar itself.
-                // Before the two panel overlays in this chain, so the communities panel
-                // still draws over it.
-                .overlay(alignment: .bottomTrailing) { composeButton }
                 // The heading every other screen carries, naming the community this app is
                 // signed in to (§ ``CommunityIdentity``). It opens the community list: this
                 // is the one heading that names something you can be somewhere *else* than,
@@ -284,6 +279,9 @@ struct ChannelListView: View {
         .onChange(of: workspacePanel.isOpen, initial: true) { _, isOpen in
             hidesRootNavigationBar = isOpen
                 || ChannelListTabBar.visibility(path: path) == .hidden
+        }
+        .onChange(of: model.surface, initial: true) { _, surface in
+            homeComposeAvailable = surface == .conversations
         }
         // And the navigation bar's own material with it, though the bar itself stays.
         //
@@ -515,30 +513,6 @@ private extension ChannelListView {
             }
             .scrollBounceBehavior(.always, axes: .vertical)
             .refreshable { await engine.refresh() }
-        }
-    }
-
-    /// The floating `+` over the trailing bottom corner, and the two surfaces it opens.
-    ///
-    /// Drawn only on the conversations surface. The other two are a launch that has not
-    /// heard from the relay yet and one that could not reach it — neither is a moment to
-    /// offer creating a channel, and both draw a screen that is about waiting.
-    ///
-    /// It fades with the communities panel at the panel's own rate, and stops taking touches
-    /// half way, exactly as the toolbar pair opposite it does: the panel covers the sidebar,
-    /// and this control belongs to the sidebar.
-    @ViewBuilder
-    var composeButton: some View {
-        if model.surface == .conversations {
-            HomeComposeButton(
-                newMessage: { showsNewDirectMessage = true },
-                newChannel: { showsCreateChannel = true }
-            )
-            // No insets here: the control is a layer rather than a button now — it carries
-            // its own corner insets and grows a full-screen scrim when its panel is out.
-            .opacity(1 - workspacePanel.progress)
-            .allowsHitTesting(workspacePanel.progress < 0.5)
-            .accessibilityHidden(workspacePanel.progress >= 0.5)
         }
     }
 

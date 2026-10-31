@@ -10,6 +10,7 @@ struct PushPreviewContext: Codable, Equatable, Sendable {
     let pubkey: String
     let directMessageChannelIDs: [String]
     let since: Int64
+    var lease: PushPreviewLease?
 }
 
 /// Both targets use the host app's Keychain access group; identity keys stay in place.
@@ -78,24 +79,26 @@ struct PushPreviewClient: Sendable {
         self.transport = transport; self.signer = signer; self.now = now
     }
     func fetch(context: PushPreviewContext, excluding: Set<String>) async throws -> PushMessagePreview? {
+        guard context.lease?.isActive(at: Int64(now().timeIntervalSince1970)) == true else {
+            throw PushPreviewError.invalidContext
+        }
         guard var url = URLComponents(string: context.relayURL),
               ["wss", "https"].contains(url.scheme?.lowercased() ?? ""),
               url.host != nil, url.user == nil, url.password == nil,
               try await signer.publicKey().hex == context.pubkey else { throw PushPreviewError.invalidContext }
         url.scheme = "https"; url.path = "/query"; url.query = nil; url.fragment = nil
         guard let queryURL = url.url else { throw PushPreviewError.invalidContext }
-        let since = max(context.since, Int64(now().timeIntervalSince1970) - 300)
-        var filters: [[String: Any]] = [["kinds": [9, 40002, 45001, 45003], "#p": [context.pubkey], "since": since, "limit": 30]]
-        let channels = Array(Set(context.directMessageChannelIDs)).sorted()
-        for start in stride(from: 0, to: channels.count, by: 50) {
-            filters.append(["kinds": [9, 40002], "#h": Array(channels[start..<min(start + 50, channels.count)]), "since": since, "limit": 30])
-        }
-        guard filters.count <= 16 else { throw PushPreviewError.invalidContext }
+        let queryTime = Int64(now().timeIntervalSince1970)
+        guard let lease = context.lease else { throw PushPreviewError.invalidContext }
+        let filters = try lease.queryFilters(pubkey: context.pubkey, since: context.since, now: queryTime)
+        guard !filters.isEmpty else { return nil }
         let events = try await query(filters, url: queryURL)
         guard let event = Self.select(events, context: context, excluding: excluding, now: Int64(now().timeIntervalSince1970)) else { return nil }
-        let profiles = try? await query([["kinds": [0, 10100], "authors": [event.pubkey], "limit": 2]], url: queryURL)
+        let profiles = try? await query([Filter(authors: [event.pubkey], kinds: [0, 10100], limit: 2)], url: queryURL)
         let profile = profiles?.filter { [0, 10100].contains($0.kind.rawValue) && $0.pubkey == event.pubkey && $0.isValid }.max { $0.createdAt < $1.createdAt }
         let sender = Self.senderName(profile: profile, pubkey: event.pubkey)
+        try Task.checkCancellation()
+        guard lease.isActive(at: Int64(now().timeIntervalSince1970)) else { return nil }
         return PushMessagePreview(
             eventID: event.id,
             sender: sender,
@@ -104,9 +107,11 @@ struct PushPreviewClient: Sendable {
             threadRootID: event.threadReference.isReply ? event.threadReference.rootID : nil
         )
     }
-    private func query(_ filters: [[String: Any]], url: URL) async throws -> [NostrEvent] {
+    private func query(_ filters: [Filter], url: URL) async throws -> [NostrEvent] {
         try Task.checkCancellation()
-        let body = try JSONSerialization.data(withJSONObject: filters, options: [.sortedKeys, .withoutEscapingSlashes])
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let body = try encoder.encode(filters)
         let authorization = try await NIP98.authorizationHeader(url: url, method: "POST", body: body, signer: signer)
         let (data, status) = try await transport.post(body: body, to: url,
             headers: ["Content-Type": "application/json", "Authorization": authorization])
@@ -114,12 +119,11 @@ struct PushPreviewClient: Sendable {
         return try JSONDecoder().decode([NostrEvent].self, from: data)
     }
     static func select(_ events: [NostrEvent], context: PushPreviewContext, excluding: Set<String>, now: Int64) -> NostrEvent? {
-        let channels = Set(context.directMessageChannelIDs)
+        guard let lease = context.lease, lease.isActive(at: now) else { return nil }
         return events.filter { e in
             e.isValid && !isPlaceholder(e) && e.pubkey != context.pubkey && !excluding.contains(e.id)
                 && e.createdAt >= max(context.since, now - 300) && e.createdAt <= now + 30
-                && (([9, 40002].contains(Int(e.kind.rawValue)) && e.firstValue(forTag: "h").map(channels.contains) == true)
-                    || ([9, 40002, 45001, 45003].contains(Int(e.kind.rawValue)) && e.tags.contains { $0.count > 1 && $0[0] == "p" && $0[1] == context.pubkey }))
+                && [9, 40002, 45001, 45003].contains(Int(e.kind.rawValue)) && lease.covers(e)
         }.max { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
     }
     private static func isPlaceholder(_ event: NostrEvent) -> Bool {

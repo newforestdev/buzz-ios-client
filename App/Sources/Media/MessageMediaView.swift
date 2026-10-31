@@ -76,6 +76,8 @@ struct MessageMediaView: View {
     /// injectable so a test or a preview can supply its own cache and session.
     var loader: RemoteImageLoader = .messageMedia
 
+    @State private var visible = false
+    @Environment(\.scenePhase) private var scenePhase
     @State private var resolved: RemoteImageResolved?
     /// The source that produced no image, so a recycled row cannot inherit the previous
     /// message's failure — the same identity rule ``RemoteImageDisplay`` applies to the
@@ -92,6 +94,14 @@ struct MessageMediaView: View {
     @Namespace private var zoom
 
     var body: some View {
+        if media.kind == .video {
+            MessageVideoAttachment(media: media, onTap: onTap, loader: loader)
+        } else {
+            imageAttachment
+        }
+    }
+
+    private var imageAttachment: some View {
         MessageMediaReservation(aspectRatio: media.aspectRatio, kind: media.kind) {
             ZStack {
                 // Drawn under every state, so the box is a surface from the first frame
@@ -116,7 +126,13 @@ struct MessageMediaView: View {
         .accessibilityHint(hint)
         .accessibilityAddTraits(traits)
         .accessibilityActions { accessibilityActivation }
-        .task(id: token) { await load(token) }
+        .onScrollVisibilityChange(threshold: 0.1) { visible = $0 }
+        .task(id: token) {
+            guard token.visible else { return }
+            await load(token)
+            guard !Task.isCancelled, let url = token.request.url else { return }
+            await loader.prefetchOriginal(for: url)
+        }
         .fullScreenCover(item: $viewing) { subject in
             MessageMediaViewer(subject: subject, loader: loader)
                 // On the cover's root, not on anything inside it: a zoom transition
@@ -148,9 +164,7 @@ private extension MessageMediaView {
     @ViewBuilder
     var content: some View {
         switch media.kind {
-        case .video:
-            MessageMediaVideoPlaceholder(media: media)
-        case .file:
+        case .video, .file:
             EmptyView()
         case .image:
             imageContent
@@ -239,6 +253,7 @@ private extension MessageMediaView {
     struct Token: Equatable {
         let request: RemoteImageRequest
         let attempt: Int
+        let visible: Bool
     }
 
     var token: Token {
@@ -247,7 +262,8 @@ private extension MessageMediaView {
                 url: sourceURL,
                 pixelSize: MessageMediaLayout.inlinePixelSize(displayScale: displayScale)
             ),
-            attempt: attempt
+            attempt: attempt,
+            visible: visible && scenePhase == .active
         )
     }
 
@@ -287,8 +303,7 @@ private extension MessageMediaView {
         case (.image, .loaded): [.isImage, .isButton]
         case (.image, .failed): isRetryable ? [.isButton] : []
         case (.image, .loading): [.isImage]
-        // A placeholder for something that cannot be played is static text, and saying
-        // "button" over it would promise an action there is not one of.
+        // Video owns its accessibility and presentation in MessageVideoAttachment.
         case (.video, _), (.file, _): []
         }
     }
