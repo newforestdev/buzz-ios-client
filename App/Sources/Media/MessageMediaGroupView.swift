@@ -33,10 +33,12 @@ struct MessageMediaGroupView: View {
     var loader: RemoteImageLoader = .messageMedia
 
     var body: some View {
-        if media.count > 1 {
+        if media.count > 1, media.allSatisfy({ $0.kind == .image }) {
             MessageMediaMosaicView(media: media, onTap: onTap, attribution: attribution, loader: loader)
-        } else if let only = media.first {
-            MessageMediaView(media: only, onTap: onTap, attribution: attribution, loader: loader)
+        } else {
+            ForEach(Array(media.enumerated()), id: \.offset) { _, item in
+                MessageMediaView(media: item, onTap: onTap, attribution: attribution, loader: loader)
+            }
         }
     }
 }
@@ -149,6 +151,8 @@ private struct MessageMediaMosaicCellView: View {
     let onActions: (UIImage?) -> Void
     var loader: RemoteImageLoader = .messageMedia
 
+    @State private var visible = false
+    @Environment(\.scenePhase) private var scenePhase
     @State private var resolved: RemoteImageResolved?
     @State private var failedURL: URL?
     @State private var attempt = 0
@@ -174,7 +178,13 @@ private struct MessageMediaMosaicCellView: View {
         .accessibilityHint(hint)
         .accessibilityAddTraits(traits)
         .accessibilityActions { accessibilityActivation }
-        .task(id: token) { await load(token) }
+        .onScrollVisibilityChange(threshold: 0.1) { visible = $0 }
+        .task(id: token) {
+            guard token.visible else { return }
+            await load(token)
+            guard !Task.isCancelled, let url = token.request.url else { return }
+            await loader.prefetchOriginal(for: url)
+        }
     }
 }
 
@@ -184,9 +194,7 @@ private extension MessageMediaMosaicCellView {
     @ViewBuilder
     var content: some View {
         switch media.kind {
-        case .video:
-            MessageMediaVideoPlaceholder(media: media)
-        case .file:
+        case .video, .file:
             EmptyView()
         case .image:
             imageContent
@@ -261,6 +269,7 @@ private extension MessageMediaMosaicCellView {
     struct Token: Equatable {
         let request: RemoteImageRequest
         let attempt: Int
+        let visible: Bool
     }
 
     var token: Token {
@@ -269,7 +278,8 @@ private extension MessageMediaMosaicCellView {
                 url: sourceURL,
                 pixelSize: MessageMediaLayout.inlinePixelSize(displayScale: displayScale)
             ),
-            attempt: attempt
+            attempt: attempt,
+            visible: visible && scenePhase == .active
         )
     }
 

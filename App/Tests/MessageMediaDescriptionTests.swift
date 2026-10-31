@@ -58,14 +58,12 @@ extension MessageMediaDescriptionTests {
         #expect(MessageMediaDescription.label(for: Self.image(alt: "  a chart  "), state: .loaded) == "a chart")
     }
 
-    @Test("a video says what it is and that it will not play, in that order")
+    @Test("a video announces its description without an obsolete playback limitation")
     func describesVideo() {
         #expect(MessageMediaDescription.label(for: Self.video(), state: .loaded) == "Video attachment")
         #expect(MessageMediaDescription.label(for: Self.video(alt: "The demo"), state: .loaded)
             == "The demo, video attachment")
-        // The caveat is the *value*, so an author's own description is still the first
-        // thing heard and the limitation arrives after it.
-        #expect(MessageMediaDescription.value(for: Self.video()) == "Not playable in this version")
+        #expect(MessageMediaDescription.value(for: Self.video()) == nil)
         #expect(MessageMediaDescription.value(for: Self.image()) == nil)
     }
 
@@ -75,8 +73,7 @@ extension MessageMediaDescriptionTests {
         #expect(MessageMediaDescription.hint(for: media, state: .loaded) == "Shows the picture full screen")
         #expect(MessageMediaDescription.hint(for: media, state: .failed) == "Tries the download again")
         #expect(MessageMediaDescription.hint(for: media, state: .loading) == nil)
-        // Nothing can be done to a video placeholder, so promising an action would be a lie.
-        #expect(MessageMediaDescription.hint(for: Self.video(), state: .loaded) == nil)
+        #expect(MessageMediaDescription.hint(for: Self.video(), state: .loaded) == "Plays the video inline")
     }
 }
 

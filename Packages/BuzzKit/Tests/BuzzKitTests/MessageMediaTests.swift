@@ -91,14 +91,12 @@ struct MessageMediaTests {
         #expect(media.first?.kind == .image)
     }
 
-    @Test("a declared video this app cannot play is carried as a generic file")
-    func unplayableVideoBecomesAFile() {
-        // The extension says mp4 and the author says quicktime. The author wins: this
-        // is the one place a fallback to the path would be second-guessing the tag.
+    @Test("a declared video reaches the native player regardless of the URL extension")
+    func declaredVideoReachesPlayer() {
         let media = MessageMedia.parse(tags: [
             imeta("url https://example.com/a.mp4", "m video/quicktime"),
         ])
-        #expect(media.first?.kind == .file)
+        #expect(media.first?.kind == .video)
     }
 
     // MARK: - Validation

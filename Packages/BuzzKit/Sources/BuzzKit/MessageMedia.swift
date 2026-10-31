@@ -2,8 +2,7 @@ import Foundation
 
 /// What a piece of message media *is*, as far as anything that draws it is concerned.
 ///
-/// Video is carried through the whole pipeline even though it is not drawn yet. A generic
-/// file is licensed only by an `imeta` tag; URL-only classification deliberately remains
+/// A generic file is licensed only by an `imeta` tag; URL-only classification deliberately remains
 /// `nil` so an ordinary link does not become an attachment or lose its link preview.
 public enum MessageMediaKind: String, Sendable, Hashable, Codable {
     case image
@@ -15,9 +14,8 @@ public enum MessageMediaKind: String, Sendable, Hashable, Codable {
     ///
     /// The MIME type decides when there is one; the path extension decides otherwise.
     ///
-    /// A declared `video/*` that is not one this app can play resolves to `nil` rather
-    /// than falling through to the extension — the author said what it is, and guessing
-    /// past that from a `.mp4` in the path would be second-guessing the tag.
+    /// Declared `video/*` attachments reach the native player, which determines whether
+    /// the device supports their codec and container.
     ///
     /// Public because classification is asked twice, and the second caller is not the
     /// `imeta` parse: a message's text can place a picture at a URL no tag describes,
@@ -27,13 +25,12 @@ public enum MessageMediaKind: String, Sendable, Hashable, Codable {
         if let mimeType {
             if mimeType.hasPrefix("image/") { self = .image; return }
             if mimeType.hasPrefix("video/") {
-                guard mimeType == "video/mp4" else { return nil }
                 self = .video
                 return
             }
         }
         let path = (URL(string: url)?.path ?? url).lowercased()
-        if path.hasSuffix(".mp4") { self = .video; return }
+        if [".mp4", ".mov", ".m4v"].contains(where: path.hasSuffix) { self = .video; return }
         let imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".bmp"]
         guard imageExtensions.contains(where: path.hasSuffix) else { return nil }
         self = .image
@@ -63,8 +60,7 @@ public struct MessageMedia: Sendable, Hashable, Codable, Identifiable {
     public let mimeType: String?
     /// Width and height as authored, when the tag carried `dim`.
     public let pixelSize: CGSize?
-    /// A still to draw in place of a video, from `image` or `thumb`. Unused while only
-    /// images render; carried so the video case costs no model change.
+    /// A still to draw in place of a video, from `image` or `thumb`.
     public let posterURL: String?
     /// The author's description, for VoiceOver and for the failure placeholder — a
     /// picture that will not load should still say what it was.

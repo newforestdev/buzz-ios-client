@@ -13,12 +13,10 @@ import Foundation
 /// NIP-92's `alt` exists for exactly this and is used verbatim wherever the author
 /// supplied one. Where they did not, the fallback is the *kind* — "Image" — and never the
 /// URL: relay media is stored under a 64-character content hash, so reading the address
-/// aloud is a minute of hexadecimal that tells nobody anything. The file name is shown on
-/// the video placeholder, where naming the thing that will not play is the whole point of
-/// the placeholder, and it is middle-truncated there for the same reason keys are.
+/// aloud is a minute of hexadecimal that tells nobody anything. Fallback attachment names
+/// are middle-truncated for the same reason keys are.
 enum MessageMediaDescription {
-    /// Where a load has got to. Video has no state of its own: nothing is fetched for it
-    /// in this version.
+    /// Where the inline image load has got to. Video downloads belong to its viewer.
     enum LoadState {
         case loading
         case loaded
@@ -46,15 +44,13 @@ enum MessageMediaDescription {
     }
 
     /// The status read after the label, or `nil` when there is nothing to add.
-    ///
-    /// A video says so here rather than in the label, so an author's `alt` is still the
-    /// first thing heard and the caveat arrives after it.
-    static func value(for media: MessageMedia) -> String? {
-        media.kind == .video ? "Not playable in this version" : nil
+    static func value(for _: MessageMedia) -> String? {
+        nil
     }
 
     /// What activating the attachment does, or `nil` when it does nothing.
     static func hint(for media: MessageMedia, state: LoadState) -> String? {
+        if media.kind == .video { return "Plays the video inline" }
         guard media.kind == .image else { return nil }
         switch state {
         case .loaded: return "Shows the picture full screen"

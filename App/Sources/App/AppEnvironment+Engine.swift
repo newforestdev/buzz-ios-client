@@ -140,9 +140,9 @@ extension AppEnvironment {
     /// much as an attachment is, and a deployment that gates blobs gates faces too. The
     /// export path does not need installing — it is handed the grant per call, from the
     /// environment, because it fetches on its own session.
-    func installMediaReadAuthorizer(_ authorizer: MediaReadAuthorizer?) async {
-        await RemoteImageLoader.shared.setAuthorization(authorizer)
-        await RemoteImageLoader.messageMedia.setAuthorization(authorizer)
+    func installMediaReadAuthorizer(_ authorizer: MediaReadAuthorizer?, cacheScope: String? = nil) async {
+        await RemoteImageLoader.shared.setAuthorization(authorizer, cacheScope: cacheScope)
+        await RemoteImageLoader.messageMedia.setAuthorization(authorizer, cacheScope: cacheScope)
     }
 
     /// Lets predicted relay URLs resolve from this community's staged bytes until

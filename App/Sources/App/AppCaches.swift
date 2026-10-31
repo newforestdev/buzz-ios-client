@@ -22,7 +22,7 @@ enum AppCaches {
     /// Dropped when the app leaves the screen.
     ///
     /// Media the relay serves as `cache-control: public, max-age=31536000, immutable`, so a
-    /// picture that comes back after this costs a decode out of `URLCache` and not a request.
+    /// picture that comes back after this costs a decode from `MediaDiskCache`, not a request.
     ///
     /// **Avatars are deliberately not in this list.** ``RemoteImageLoader/shared`` is the
     /// smallest of the five at 16 MB and by far the most visible — every sidebar row, every
@@ -32,6 +32,12 @@ enum AppCaches {
     /// a sixth of the footprint for a monogram flashing on every visible row on the way back
     /// in. They go with a session instead — see ``releaseAll()``.
     static func releaseSuspendable() {
+        MessageVideoPlayback.pauseActive()
+        MessageVideoPreview.cancelPending()
+        MessageVideoPreview.releaseMemory()
+        Task {
+            await MediaImageStore.shared.cancelPending()
+        }
         // The 48 MB one, and the reason this exists.
         RemoteImageLoader.messageMedia.removeAll()
         // 32 MB of avatar-editor tiles, held for the life of the process after one browse.
@@ -50,5 +56,9 @@ enum AppCaches {
     static func releaseAll() {
         releaseSuspendable()
         RemoteImageLoader.shared.removeAll()
+        MessageVideoPlayback.closeActive()
+        Task { await MessageVideoStore.shared.cancelPending() }
+        // Persistent bytes are partitioned by community and identity; only network work
+        // and decoded state end with the session. The disk LRU survives app restarts.
     }
 }

@@ -46,6 +46,8 @@ actor RemoteImageLoader {
     /// The signed grant relay media is fetched with, once there is an identity to sign
     /// one. `nil` until a session mounts, and again after it ends.
     private var authorization: (any MediaReadAuthorizing)?
+    private var cacheScope: String?
+    private var generation = UUID()
     /// The active community's exact staged bytes, keyed by the predicted URL's filename.
     private var stagingDirectory: URL?
 
@@ -62,9 +64,19 @@ actor RemoteImageLoader {
     /// describe a question that was asked without credentials, so they say nothing about
     /// the request the loader would make now — and leaving them would hold a conversation
     /// blank for minutes after the thing that fixes it landed.
-    func setAuthorization(_ provider: (any MediaReadAuthorizing)?) {
+    func setAuthorization(_ provider: (any MediaReadAuthorizing)?, cacheScope: String? = nil) {
+        for task in inFlight.values { task.cancel() }
+        inFlight.removeAll()
+        generation = UUID()
         authorization = provider
+        self.cacheScope = cacheScope
         failures.removeAll()
+    }
+
+    /// Called by visible message tiles after their small preview has been requested.
+    func prefetchOriginal(for url: URL) async {
+        guard let cacheScope, ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { return }
+        await MediaImageStore.shared.prefetch(url, scope: cacheScope, session: session, authorization: authorization)
     }
 
     func setStagingDirectory(_ directory: URL?) {
@@ -72,23 +84,14 @@ actor RemoteImageLoader {
         failures.removeAll()
     }
 
-    /// The session images are fetched on.
-    ///
-    /// `URLCache.shared` is left in place — the relay serves media as
-    /// `cache-control: public, max-age=31536000, immutable`, so the URL loading system
-    /// already collapses the repeat fetches that keying the image cache by pixel size
-    /// implies (a 30-pt mention, a 34-pt row, and a 36-pt timeline avatar are three cache
-    /// entries but one download), and a 12 KB thumbnail persists across launches for free.
-    ///
-    /// The one change from the default is the *idle* timeout, cut from 60 seconds to 15.
-    /// The media host is tailnet-only, so off the tailnet every request fails; failing in
-    /// fifteen seconds rather than sixty is the difference between a screen of rows parking
-    /// a task each for a minute and doing so for a quarter of one. Deliberately the idle
-    /// timeout and not `timeoutIntervalForResource`: a slow-but-progressing download must
-    /// not be cut off, only a host that sends nothing at all.
+    /// HTTP response caching is disabled here: MediaDiskCache owns the single 5 GB
+    /// image/video budget. Decoded bitmaps keep their separate, small memory budgets.
+    /// The 15-second idle timeout allows slow downloads that are still making progress.
     static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 15
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: configuration)
     }
 
@@ -165,16 +168,19 @@ actor RemoteImageLoader {
         // progress and start a duplicate fetch.
         let session = session
         let authorization = authorization
+        let cacheScope = cacheScope
         let stagingDirectory = stagingDirectory
+        let generation = generation
         let task = Task<Outcome, Never> {
             await Self.resolve(
                 url, thumbnail: thumbnail, pixelSize: pixelSize,
                 session: session, authorization: authorization,
-                stagingDirectory: stagingDirectory
+                stagingDirectory: stagingDirectory, cacheScope: cacheScope
             )
         }
         inFlight[key] = task
         let outcome = await task.value
+        guard self.generation == generation else { return nil }
         inFlight[key] = nil
         return apply(outcome, key: key)
     }
@@ -278,7 +284,8 @@ extension RemoteImageLoader {
         pixelSize: CGFloat,
         session: URLSession,
         authorization: (any MediaReadAuthorizing)? = nil,
-        stagingDirectory: URL? = nil
+        stagingDirectory: URL? = nil,
+        cacheScope: String? = nil
     ) async -> Outcome {
         if let dataURI = DataURI(url: url) {
             guard let image = decode(dataURI, pixelSize: pixelSize) else {
@@ -295,7 +302,7 @@ extension RemoteImageLoader {
         }
         return await fetch(
             url, thumbnail: thumbnail, pixelSize: pixelSize,
-            session: session, authorization: authorization
+            session: session, authorization: authorization, cacheScope: cacheScope
         )
     }
 }
@@ -312,11 +319,12 @@ extension RemoteImageLoader {
         thumbnail: URL?,
         pixelSize: CGFloat,
         session: URLSession,
-        authorization: (any MediaReadAuthorizing)? = nil
+        authorization: (any MediaReadAuthorizing)? = nil,
+        cacheScope: String? = nil
     ) async -> Outcome {
         if let thumbnail {
             let outcome = await load(
-                thumbnail, pixelSize: pixelSize, session: session, authorization: authorization
+                thumbnail, pixelSize: pixelSize, session: session, authorization: authorization, cacheScope: cacheScope
             )
             switch outcome {
             // Blobs uploaded before the relay generated thumbnails have none, so a missing
@@ -329,15 +337,33 @@ extension RemoteImageLoader {
             case .image, .failed: return outcome
             }
         }
-        return await load(url, pixelSize: pixelSize, session: session, authorization: authorization)
+        return await load(url, pixelSize: pixelSize, session: session,
+                          authorization: authorization, cacheScope: cacheScope)
     }
 
     private nonisolated static func load(
         _ url: URL,
         pixelSize: CGFloat,
         session: URLSession,
-        authorization: (any MediaReadAuthorizing)?
+        authorization: (any MediaReadAuthorizing)?,
+        cacheScope: String?
     ) async -> Outcome {
+        if let cacheScope {
+            do {
+                let data = try await MediaImageStore.shared.data(
+                    for: url, scope: cacheScope, session: session, authorization: authorization
+                )
+                guard let image = downsample(data, maxPixelSize: pixelSize) else {
+                    return .failed(.undecodable, url: url)
+                }
+                return .image(image)
+            } catch let failure as MediaImageStore.HTTPFailure {
+                let isGone = failure.status == 404 || failure.status == 410
+                return .failed(isGone ? .notFound : .transport, url: url)
+            } catch {
+                return .failed(.transport, url: url)
+            }
+        }
         var request = URLRequest(url: url)
         // Sent whenever one can be minted, not only when the relay is known to insist:
         // whether a deployment requires it is its own configuration and nothing the client

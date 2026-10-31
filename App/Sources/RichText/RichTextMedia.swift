@@ -58,10 +58,7 @@ enum RichTextMedia {
     /// between them, whether from one split paragraph or from two consecutive ones —
     /// folded into a single ``RichBlock/media(_:)`` the renderer draws as a mosaic.
     ///
-    /// Videos never fold: there is no gallery to page a placeholder into, and mixing one
-    /// into a run of pictures would put an inert tile in a set every other member of
-    /// which opens. Each stays the one-picture group ``MessageMediaGroupView`` already
-    /// draws exactly as a lone attachment.
+    /// Videos stay separate from image galleries and open their own full-screen player.
     private static func group(_ blocks: [RichBlock]) -> [RichBlock] {
         var result: [RichBlock] = []
         for block in blocks {

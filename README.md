@@ -71,6 +71,7 @@ This section describes the app as it is on `main`, not as planned. Anything not 
 - Compose multiline drafts with mention autocomplete, durable optimistic sending, retry/discard handling, and relay rejection reasons.
 - Attach pictures from Photos or the pasteboard, up to five per message; uploads start when the picture is picked or pasted, and still images are re-rendered and scrubbed of metadata before they leave the device.
 - Open pictures full screen with zoom, paging, and Live Text; save or share what others post.
+- Play video attachments inline with native controls and an option to expand full screen. Posters load when visible, with a first-frame fallback. Authenticated video ranges stream on demand and prefetch while visible. Images also prefetch their originals after loading the preview. Images, video ranges and generated previews share a persistent 5 GB disk cache that evicts least recently used data; iOS may reclaim it under storage pressure. Prefetch stops when leaving the visible list or backgrounding the app. No lower-resolution video rendition is generated.
 - React with quick reactions or the emoji picker.
 - Edit messages you authored or own through an agent, delete those messages, and delete others' messages when your channel role allows moderation; incoming edits and deletions authored elsewhere render too.
 - Mute a conversation from Channel Details; mutes are encrypted `kind:30078` user state and merge across this identity's devices.
@@ -102,7 +103,7 @@ These exist upstream, or are on the roadmap, and are honestly absent here:
 
 - **Push notifications.** Opt in with “Wake for new messages” on a relay advertising push support. APNs carries a generic wake; the device fetches signed sender/message previews using the active lease’s subscriptions. Expired or revoked leases retain a generic notification. Conflicting registrations are recovered when this device still holds the matching gateway credentials; otherwise Settings explains how to clear the old registration. Later reminders remain local notifications.
 - **In-app message search.** Channels can be searched by name; there is no screen that searches message text across conversations.
-- **Video, files, and camera capture.** Pictures can be attached from Photos or the pasteboard, but video is only marked, files are not attachable, and Camera currently opens a work-in-progress alert.
+- **Video uploads and camera capture.** Received video attachments can be played, but attaching videos and recording with the camera are not implemented.
 - **A profile from the sidebar or the channel roster.** The sheet is reached from a message today, so someone who has not posted in the open conversation has no entry point.
 - **Forum, Pulse, creating or sending invites, and custom emoji.** Hive can redeem invite links and `buzz://join` handoffs, but cannot mint an invitation. A conversation can be starred, but the star stays on the device rather than syncing.
 - **Editing a roster.** A channel can be made here, a direct message opened, and an open channel joined, but the roster itself is read rather than changed: nobody else can be added to a channel or removed from one.
