@@ -101,6 +101,8 @@ struct ConversationPeopleList: View {
     /// today, and a row that highlights under the finger and then does nothing reads as a
     /// broken control. The reactor sheet passes one.
     var onSelect: ((String) -> Void)?
+    /// Offered only for an admin's channel roster; thread participants remain read-only.
+    var onAddPeople: (() -> Void)?
 
     @Environment(\.entityNames) private var names
 
@@ -122,6 +124,13 @@ struct ConversationPeopleList: View {
             } header: {
                 if !people.isEmpty {
                     Text(Self.countLabel(people.count))
+                }
+            }
+        }
+        .toolbar {
+            if let onAddPeople {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Add People", systemImage: "person.badge.plus", action: onAddPeople)
                 }
             }
         }

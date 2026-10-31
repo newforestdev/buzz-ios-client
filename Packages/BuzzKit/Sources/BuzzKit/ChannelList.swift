@@ -377,7 +377,11 @@ extension BuzzEventStore {
         WHERE :selfPubkey IS NULL
            OR (ca.state = 'active' AND c.is_archived = 0
                AND EXISTS (SELECT 1 FROM channel_member cm
-                            WHERE cm.channel_id = c.id AND cm.pubkey = :selfPubkey))
+                            WHERE cm.channel_id = c.id AND cm.pubkey = :selfPubkey)
+               AND (c.channel_type IS NOT 'dm'
+                    OR EXISTS (SELECT 1 FROM channel_member peer
+                                WHERE peer.channel_id = c.id
+                                  AND peer.pubkey <> :selfPubkey)))
         ORDER BY last_message_at DESC NULLS LAST, c.name ASC, c.id ASC
         """
 
