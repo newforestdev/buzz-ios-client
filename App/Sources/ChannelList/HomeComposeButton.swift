@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The home screen's floating `+`, and the panel that grows out of it.
+/// The home tab's compact compose control, and the panel that grows out of it.
 ///
 /// # Why this is not a `Menu`
 ///
@@ -35,39 +35,28 @@ import SwiftUI
 ///
 /// # The geometry
 ///
-/// Nothing in `TabView` will place a second button beside the search tab's — that one is
-/// drawn by UIKit outside this view tree — so the constants below put it there, measured off
-/// the owner's reference at @3x (1320px wide, so px÷3): the search circle reads 186px
-/// across, **62pt**, with its right edge 64px from the screen edge, **21pt**. The `+` sits on
-/// that same centre line.
+/// The root navigation row places this fixed-size control beside the tabs. The panel is
+/// an overlay so opening it never changes the row's height or the button's position.
 struct HomeComposeButton: View {
     /// Opens the new-direct-message sheet.
     let newMessage: () -> Void
     /// Opens the new-channel sheet.
     let newChannel: () -> Void
 
-    /// Whether the panel is out. Local, because nothing outside this control needs to know:
-    /// the two actions it offers are already flags on the screen that hosts it.
-    @State private var isOpen = false
+    /// Shared with the root so a tap outside the panel dismisses it.
+    @Binding var isOpen: Bool
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            if isOpen {
-                scrim
-            }
-            // Both pieces of glass in one container, so they are sampled together and merge
-            // as the panel travels — the same reason the activity rail's chips share one.
-            GlassEffectContainer(spacing: Self.glassSpacing) {
-                VStack(alignment: .trailing, spacing: Self.glassSpacing) {
+        GlassEffectContainer(spacing: Self.glassSpacing) {
+            toggle
+                .overlay(alignment: .bottomTrailing) {
                     if isOpen {
                         panel
+                            .padding(.bottom, Self.diameter + Self.glassSpacing)
                     }
-                    toggle
                 }
-            }
-            .padding(.trailing, Self.trailingInset)
-            .padding(.bottom, Self.bottomGap)
         }
+        .frame(width: Self.diameter, height: Self.diameter)
         // The panel is a layer over the sidebar rather than a thing in it, so the whole
         // control is one accessibility container and the rows inside it stay reachable.
         .accessibilityElement(children: .contain)
@@ -178,21 +167,6 @@ struct HomeComposeButton: View {
         .accessibilityHint("Message someone directly")
     }
 
-    /// Tap anywhere off the panel to put it away. Nearly clear rather than invisible: the
-    /// reference dims what is behind the card, and a dim is also the only signal that the
-    /// tap it is about to swallow was not a tap on the sidebar.
-    private var scrim: some View {
-        Button {
-            withAnimation(Self.motion) { isOpen = false }
-        } label: {
-            Color.black.opacity(Self.scrimOpacity)
-                .ignoresSafeArea()
-        }
-        .buttonStyle(.hiveNoPress)
-        .transition(.opacity)
-        .accessibilityLabel("Close")
-    }
-
     /// Puts the panel away, then does the thing. In that order: the sheet the action opens is
     /// presented over this screen, and a card still animating underneath a presenting sheet
     /// is a frame nobody asked for.
@@ -203,17 +177,10 @@ struct HomeComposeButton: View {
 
     // MARK: - Metrics
 
-    /// The search tab button's own diameter — 186px at @3x on the owner's reference.
-    static let diameter: CGFloat = 62
+    /// Smaller than the tab bar controls while remaining an easy touch target.
+    static let diameter: CGFloat = 48
     /// How big the `+` is inside its glass.
-    static let glyphPointSize: CGFloat = 22
-    /// The search circle's distance from the trailing screen edge, so the two share a centre
-    /// line: 64px at @3x.
-    static let trailingInset: CGFloat = 21
-    /// The gap above the bottom of the safe area — which the tab bar's own inset has already
-    /// lifted clear of the bar — so the two circles read as a pair rather than as one control
-    /// touching another.
-    static let bottomGap: CGFloat = 8
+    static let glyphPointSize: CGFloat = 18
     static let panelWidth: CGFloat = 320
     static let panelRadius: CGFloat = 28
     static let panelPadding: CGFloat = 12
@@ -234,6 +201,6 @@ struct HomeComposeButton: View {
 #Preview {
     ZStack {
         Color.hiveNight.ignoresSafeArea()
-        HomeComposeButton(newMessage: {}, newChannel: {})
+        HomeComposeButton(newMessage: {}, newChannel: {}, isOpen: .constant(false))
     }
 }
