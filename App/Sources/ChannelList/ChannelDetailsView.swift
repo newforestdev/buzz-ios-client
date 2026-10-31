@@ -19,6 +19,7 @@ struct ChannelDetailsView: View {
     /// Pushed on this sheet's own stack, never presented as a second sheet: a modal
     /// presented from inside a modal races the first one's dismissal (see Part 13).
     @State private var isEditingCanvas = false
+    @State private var isAddingMembers = false
     @State private var canvasDraft = ""
     private let channel: ChannelListRow
     private let engine: SyncEngine?
@@ -85,6 +86,16 @@ struct ChannelDetailsView: View {
             }
             .navigationDestination(isPresented: $isEditingCanvas) {
                 ChannelCanvasEditor(text: $canvasDraft, onSave: saveCanvas)
+            }
+            .sheet(isPresented: $isAddingMembers) {
+                if let engine {
+                    AddChannelMembersSheet(
+                        channelID: channel.id,
+                        existingMembers: Set(model.members.map(\.pubkey)),
+                        selfPubkey: selfPubkey,
+                        engine: engine
+                    )
+                }
             }
         }
         .task { await model.run() }
@@ -237,7 +248,10 @@ private extension ChannelDetailsView {
                 people: model.members.map(ConversationPerson.init(member:)),
                 isLoading: !model.hasLoaded,
                 emptyMessage: "No members available",
-                presence: presence
+                presence: presence,
+                onAddPeople: channel.isPrivate && model.permissions.canArchive && engine != nil
+                    ? { isAddingMembers = true }
+                    : nil
             )
             .navigationTitle("Members")
             .navigationBarTitleDisplayMode(.inline)
