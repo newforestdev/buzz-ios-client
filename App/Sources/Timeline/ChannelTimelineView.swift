@@ -17,6 +17,7 @@ struct ChannelTimelineView: View {
     @State private var typing: ChannelTypingModel
     @State private var access: ChannelAccessModel
     @State private var showsChannelDetails = false
+    @State private var showsChannelWorkflows = false
     /// Whether the roster sheet is open — the `person.3.fill` beside the `⋮`.
     @State private var showsPeople = false
     /// The message whose actions sheet is open, if any — set by a long press on a row.
@@ -236,6 +237,17 @@ struct ChannelTimelineView: View {
         }
         .focusesComposerOnArrival(focusesComposer) { model.mentionAutocomplete.isComposerFocused = true }
         .modifier(header)
+        .navigationDestination(isPresented: $showsChannelWorkflows) {
+            if let lifecycleEngine {
+                ChannelWorkflowsView(
+                    channelID: channelID,
+                    channelName: conversation.title,
+                    members: (try? store.channelMembers(channelID)) ?? [],
+                    selfPubkey: selfPubkey,
+                    engine: lifecycleEngine
+                )
+            }
+        }
         // A conversation takes the whole screen. The tab bar is not just visual clutter
         // under the composer: it is a second bottom inset, and every scroll and keyboard
         // decision this surface makes is arithmetic over that inset — so a conversation
@@ -474,6 +486,9 @@ struct ChannelTimelineView: View {
             action: { showsChannelDetails = true },
             actionHint: "Double tap to show conversation details",
             manageAction: { showsChannelDetails = true },
+            workflowAction: lifecycleEngine != nil && !channel.isDirectMessage
+                ? { showsChannelWorkflows = true }
+                : nil,
             // Withheld from a one-to-one direct message: the heading there is already the
             // person and their presence dot, so a button that would list the two of you is
             // a control whose only answer is what the reader is looking at.

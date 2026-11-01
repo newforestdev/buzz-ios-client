@@ -135,7 +135,7 @@ struct ConversationTitleBar: ViewModifier {
     /// lead somewhere. The one heading that has nowhere to go is the Activity tab's, which
     /// names a screen instead of a conversation.
     var isInert = false
-    /// What the trailing `⋮` does, or `nil` for a surface with nothing to manage — a
+    /// What the channel details action does, or `nil` for a surface with nothing to manage — a
     /// thread, the Activity tab, the sidebar.
     ///
     /// It leads to the same sheet the heading does. Two doors to one room, on purpose: a
@@ -143,6 +143,8 @@ struct ConversationTitleBar: ViewModifier {
     /// sheet holding the same channel's topic in slightly different words is how a UI
     /// starts contradicting itself.
     var manageAction: (() -> Void)?
+    /// Opens the channel workflow manager from the horizontal options menu.
+    var workflowAction: (() -> Void)?
     /// What the trailing `person.3.fill` does, or `nil` for a surface with nobody to list.
     ///
     /// Absent on a one-to-one direct message on purpose: the heading there is already the
@@ -231,9 +233,15 @@ struct ConversationTitleBar: ViewModifier {
 
                 if let manageAction {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: manageAction) { manageGlyph }
-                            .accessibilityLabel("Manage channel")
-                            .accessibilityHint("Double tap to mute, read the channel’s context, or edit its canvas")
+                        Menu {
+                            Button("Channel Details", systemImage: "info.circle", action: manageAction)
+                            if let workflowAction {
+                                Button("Workflows", systemImage: "point.3.connected.trianglepath.dotted", action: workflowAction)
+                            }
+                        } label: {
+                            manageGlyph
+                        }
+                        .accessibilityLabel("Channel options")
                     }
                 }
             }
@@ -254,14 +262,10 @@ struct ConversationTitleBar: ViewModifier {
             .accessibilityHidden(true)
     }
 
-    /// The `⋮`. Rotated rather than named: SF Symbols ships `ellipsis` horizontal and has
-    /// no plain vertical counterpart (`ellipsis.vertical.bubble` is a speech bubble), so a
-    /// quarter turn is the whole of it. Hidden from VoiceOver — the button above carries
-    /// the label, and a rotated glyph would otherwise be read as "ellipsis".
+    /// Horizontal ellipsis for the channel options menu.
     private var manageGlyph: some View {
         Image(systemName: "ellipsis")
             .font(.hiveSymbol(.body, weight: .semibold))
-            .rotationEffect(.degrees(90))
             // See ``peopleGlyph``: named, at full strength, and deliberately not the accent.
             .foregroundStyle(Color.primary)
             .accessibilityHidden(true)
@@ -425,6 +429,7 @@ extension View {
         actionHint: String? = nil,
         opacity: Double = 1,
         action: @escaping () -> Void,
+        workflowAction: (() -> Void)? = nil,
         peopleAction: (() -> Void)? = nil
     ) -> some View {
         modifier(ConversationTitleBar(
@@ -433,6 +438,7 @@ extension View {
             subtitle: subtitle,
             action: action,
             actionHint: actionHint,
+            workflowAction: workflowAction,
             peopleAction: peopleAction,
             opacity: opacity
         ))

@@ -44,6 +44,10 @@ public actor RelayConnection {
     // MARK: - Injected collaborators
 
     let url: URL
+
+    /// The relay's configured WebSocket endpoint, for clients that need its matching
+    /// HTTP routes (for example the workflow webhook endpoint).
+    public nonisolated var relayURL: URL { url }
     let signer: any EventSigner
     let config: RelayConnectionConfig
 
