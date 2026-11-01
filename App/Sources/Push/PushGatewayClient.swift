@@ -9,7 +9,11 @@ import Security
 /// APNs token. This object only enrolls the installation and asks the gateway to mint a
 /// relay-scoped opaque delivery capability.
 struct PushGatewayClient: Sendable {
-    static let appProfile = "buzz-ios-dogfood"
+    #if DEBUG
+    static let appProfile = "buzz-ios-sandbox"
+    #else
+    static let appProfile = "buzz-ios-production"
+    #endif
     let baseURL: URL
     let transport: any HTTPTransport
     let enrollmentJournal: any PushEnrollmentJournal

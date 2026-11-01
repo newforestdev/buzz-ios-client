@@ -44,6 +44,7 @@ final class PushLeaseCoordinator {
         defer { activationInFlight = false }
         guard let infoClient = RelayInfoClient(relayURLString: relayURLString, transport: transport),
               let descriptor = try await infoClient.fetch().push,
+              descriptor.supportsAppProfile(PushGatewayClient.appProfile),
               let deliveryString = descriptor.endpoint ?? Bundle.main.object(forInfoDictionaryKey: "HivePushGatewayURL") as? String,
               let deliveryURL = URL(string: deliveryString),
               let gateway = PushGatewayClient(deliveryURL: deliveryURL, transport: transport)

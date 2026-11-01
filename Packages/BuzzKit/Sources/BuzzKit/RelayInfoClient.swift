@@ -226,7 +226,11 @@ public struct RelayPushDescriptor: Decodable, Equatable, Sendable {
         guard
               keys.filter({ $0.current == true }).count == 1,
               Set(keys.map(\.id)).count == keys.count,
-              appProfiles.filter({ $0.id == "buzz-ios-dogfood" && $0.transport == "apns" }).count == 1,
+              !appProfiles.isEmpty,
+              Set(appProfiles.map(\.id)).count == appProfiles.count,
+              appProfiles.contains(where: {
+                  ["buzz-ios-production", "buzz-ios-sandbox"].contains($0.id) && $0.transport == "apns"
+              }),
               let pushKinds,
               !pushKinds.isEmpty,
               pushKinds.count <= 16,
@@ -243,6 +247,9 @@ public struct RelayPushDescriptor: Decodable, Equatable, Sendable {
     }
 
     public var currentKey: Key? { keys.first(where: { $0.current == true }) }
+    public func supportsAppProfile(_ profile: String) -> Bool {
+        appProfiles.contains { $0.id == profile && $0.transport == "apns" }
+    }
     public var pushEligibleKinds: [Int] { pushKinds ?? [] }
     public var maxChannelIDs: Int { limitations?.maxH ?? 50 }
     public var maxSubscriptions: Int { limitations?.maxSubscriptionsPerLease ?? 16 }

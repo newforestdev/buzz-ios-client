@@ -54,7 +54,7 @@ struct PushGatewayClientTests {
 
         let installation = try await client.enroll(
             token: Data([0x00, 0xab, 0xff]),
-            profile: "buzz-ios-dogfood",
+            profile: "buzz-ios-sandbox",
             expiresAt: 1_900_000_000,
             attester: attester
         )
@@ -66,7 +66,7 @@ struct PushGatewayClientTests {
             + ",\"challenge_id\":\"11111111-1111-4111-8111-111111111111\""
             + ",\"challenge\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
             + ",\"key_id\":\"test-key-id\""
-            + ",\"app_profile\":\"buzz-ios-dogfood\""
+            + ",\"app_profile\":\"buzz-ios-sandbox\""
             + ",\"endpoint\":\"00abff\""
             + ",\"endpoint_epoch\":1"
             + ",\"expires_at\":1900000000}")
@@ -96,7 +96,7 @@ struct PushGatewayClientTests {
             handle: "22222222-2222-4222-8222-222222222222",
             endpointEpoch: 1,
             expiresAt: 1_900_000_000,
-            profile: "buzz-ios-dogfood"
+            profile: "buzz-ios-sandbox"
         )
         let client = try #require(PushGatewayClient(baseURL: URL(string: "https://push.example")!, transport: transport))
 
@@ -133,7 +133,7 @@ struct PushGatewayClientTests {
         let client = try #require(PushGatewayClient(baseURL: URL(string: "https://push.example")!, transport: transport))
         await #expect(throws: PushGatewayError.invalidResponse) {
             _ = try await client.enroll(
-                token: Data([0x01]), profile: "buzz-ios-dogfood", expiresAt: 1_900_000_000,
+                token: Data([0x01]), profile: "buzz-ios-sandbox", expiresAt: 1_900_000_000,
                 attester: RecordingPushAttester()
             )
         }
@@ -147,7 +147,7 @@ struct PushGatewayClientTests {
         "keys":[{"id":"key-1",
         "pubkey":"\(executorKey.publicKey.hex)",
         "current":true}],
-        "app_profiles":[{"id":"buzz-ios-dogfood",
+        "app_profiles":[{"id":"buzz-ios-sandbox",
         "transport":"apns"}],
         "push_kinds":[9,
         40002,
@@ -178,7 +178,7 @@ struct PushGatewayClientTests {
         )
         let payload = try #require(JSONSerialization.jsonObject(with: Data(plaintext.utf8)) as? [String: Any])
         #expect(payload["origin"] as? String == "wss://relay.example")
-        #expect(payload["app_profile"] as? String == "buzz-ios-dogfood")
+        #expect(payload["app_profile"] as? String == "buzz-ios-sandbox")
         #expect(payload["endpoint"] as? String == "capability:opaque")
         let subscriptions = try #require(payload["subscriptions"] as? [[String: Any]])
         #expect(subscriptions.count == 3)
@@ -220,7 +220,7 @@ struct PushGatewayClientTests {
         "keys":[{"id":"key-1",
         "pubkey":"\(executorKey.publicKey.hex)",
         "current":true}],
-        "app_profiles":[{"id":"buzz-ios-dogfood",
+        "app_profiles":[{"id":"buzz-ios-sandbox",
         "transport":"apns"}],
         "push_kinds":[9,
         40002,
