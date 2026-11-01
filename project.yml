@@ -74,6 +74,8 @@ targets:
       properties:
         CFBundleName: Steelbeach
         CFBundleDisplayName: Steelbeach
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         HivePushGatewayURL: $(HIVE_PUSH_GATEWAY_URL)
         # Answers App Store Connect's export-compliance question once, in the binary,
         # instead of by hand at every single upload.
@@ -178,8 +180,8 @@ targets:
           ask it to.
     settings:
       base:
-        CURRENT_PROJECT_VERSION: 1
-        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 2
+        MARKETING_VERSION: 0.1.1
         SWIFT_STRICT_CONCURRENCY: complete
         CODE_SIGN_ENTITLEMENTS: App/Resources/Hive.entitlements
         # iPhone only. Left unset, XcodeGen declares `1,2` — iPhone AND iPad — and
@@ -224,6 +226,8 @@ targets:
       path: NotificationService/Info.plist
       properties:
         CFBundleDisplayName: Steelbeach Notifications
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
@@ -233,8 +237,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: NotificationService/NotificationService.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
         SWIFT_STRICT_CONCURRENCY: complete
-        CURRENT_PROJECT_VERSION: 1
-        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 2
+        MARKETING_VERSION: 0.1.1
   HiveTests:
     type: bundle.unit-test
     platform: iOS
