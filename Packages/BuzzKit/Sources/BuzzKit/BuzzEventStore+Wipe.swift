@@ -34,6 +34,7 @@ public extension BuzzEventStore {
             try db.execute(sql: "INSERT INTO message_search(message_search) VALUES('delete-all')")
             try db.execute(sql: "DELETE FROM outbox_media")
             try db.execute(sql: "DELETE FROM outbox")
+            try db.execute(sql: "DELETE FROM channel_notification_preference")
             try db.execute(sql: "DELETE FROM channel_sync")
             try db.execute(sql: "DELETE FROM channel_access")
             try db.execute(sql: "DELETE FROM channel_directory_request")

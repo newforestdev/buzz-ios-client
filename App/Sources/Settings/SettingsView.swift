@@ -164,14 +164,16 @@ struct SettingsView: View {
             AccountFieldRow(label: "ON THIS PHONE") {
                 Toggle("Allow notifications", isOn: notificationsBinding)
                     .font(.hive(.body))
+                    .tint(.blue)
             }
             Divider()
             AccountFieldRow(label: "RELAY WAKEUPS") {
                 Toggle("Wake for new messages", isOn: pushNotificationsBinding)
                     .font(.hive(.body))
+                    .tint(.blue)
                     .disabled(!environment.settings.notificationsEnabled)
             }
-            Text("Alerts for mentions and direct messages. Message contents stay on your relay.")
+            Text("Alerts for channel messages, mentions and direct messages. Manage channel alerts in channel details.")
                 .font(.hive(.footnote))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

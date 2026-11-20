@@ -76,13 +76,18 @@ struct InAppNotification: Hashable, Identifiable {
     var qualifies: Bool {
         guard entry.channelID?.isEmpty == false else { return false }
         return entry.categories.contains(.mention) || entry.isDirectMessage || entry.rootID != nil
+            || entry.latest.kind == 9
+    }
+
+    func allowsAlert(channelAlertsEnabled: Bool) -> Bool {
+        channelAlertsEnabled || entry.isDirectMessage || entry.categories.contains(.mention)
     }
 
     var context: String {
         if entry.isDirectMessage { return "New direct message" }
         let place = entry.channelName.isEmpty ? "a channel" : "#\(entry.channelName)"
         if entry.categories.contains(.mention) { return "Mentioned you in \(place)" }
-        return "Replied in \(place)"
+        return entry.rootID == nil ? "New message in \(place)" : "Replied in \(place)"
     }
 
     var accessibilityLabel: String {

@@ -36,6 +36,9 @@ struct HiveApp: App {
         PushNotifications.shared.onToken = { token in
             Task { await environment.registerPushToken(token) }
         }
+        PushNotifications.shared.onChannelAlertsChanged = {
+            await environment.refreshPushLease()
+        }
         DirectMessageRouter.onConversationOpened = { channelID in
             Task { await environment.refreshPushLease(openedDMChannelID: channelID) }
         }
@@ -168,6 +171,9 @@ struct HiveApp: App {
     private var launch: some View {
         RootView()
             .environment(environment)
+            .task(id: environment.phase) {
+                await environment.observePushChannelChanges()
+            }
             .task {
                 await environment.bootstrap()
                 if environment.settings.pushNotificationsEnabled {

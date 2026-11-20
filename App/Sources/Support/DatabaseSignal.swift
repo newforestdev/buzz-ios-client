@@ -27,6 +27,17 @@ enum DatabaseSignal {
         tracked.values(in: reader)
     }
 
+    /// A narrow region for the push lease. New messages do not trigger a renewal.
+    static func pushChannelChanges(in reader: any DatabaseReader) -> AsyncValueObservation<Int> {
+        ValueObservation.tracking { db in
+            var token = 0
+            for table in ["channel", "channel_member", "channel_access", "channel_mute", "channel_notification_preference"] {
+                token &+= try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)") ?? 0
+            }
+            return token
+        }.values(in: reader, bufferingPolicy: .bufferingNewest(1))
+    }
+
     /// The same signal, keeping only the **newest** pending token instead of every one.
     ///
     /// For a consumer whose read is expensive enough that it wants to coalesce a burst

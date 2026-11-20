@@ -198,7 +198,7 @@ struct TimelineRowView: View {
                     )
                 }
                 if showsSendingStrip {
-                    SendingStrip(uploaded: row.uploadedMediaCount, total: row.media.count)
+                    SendingStrip(uploaded: row.uploadedMediaCount, total: row.media.count, status: sendingStatus)
                 }
                 if case let .failed(reason) = row.delivery {
                     RetryStrip(
@@ -295,6 +295,15 @@ struct TimelineRowView: View {
     /// A message carrying pictures says it immediately: an upload genuinely takes time, and
     /// the count climbing is the one part of a send a reader can usefully watch. A text-only
     /// send waits out ``slowSendThreshold`` first — see ``isSlowSend``.
+    private var sendingStatus: String {
+        switch row.outboxState {
+        case .sending: "Waiting for server…"
+        case .awaitingReauth: "Reconnecting…"
+        case .awaitingMedia: "Uploading…"
+        default: "Waiting to send…"
+        }
+    }
+
     private var showsSendingStrip: Bool {
         row.delivery == .pending && (!row.media.isEmpty || isSlowSend)
     }

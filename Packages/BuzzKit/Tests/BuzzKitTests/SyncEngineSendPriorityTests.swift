@@ -88,6 +88,74 @@ struct SyncEngineSendPriorityTests {
         await harness.engine.stop()
     }
 
+    @Test("an unacknowledged read-state update does not block a new message")
+    func readStateDoesNotBlockMessage() async throws {
+        let socket = ScriptedRelay()
+        let database = TempDatabase()
+        defer { database.remove() }
+        let harness = try EngineHarness(path: database.path, identity: try PrivateKey(), relays: [socket])
+        let background = try await harness.store.enqueue(
+            kind: .readState, content: "snapshot", in: "", with: harness.signer
+        )
+        try await harness.engine.start()
+        try await driveAuth(harness.connection, socket)
+        await Self.waitUntil { await Self.publishedIDs(on: socket).contains(background.id) }
+        #expect(await Self.publishedIDs(on: socket).contains(background.id))
+
+        let message = try await harness.store.enqueue(
+            content: "hello", in: "room-1", tags: [["h", "room-1"]], with: harness.signer
+        )
+        Task { await harness.engine.drainOutbox() }
+        await Self.waitUntil { await Self.publishedIDs(on: socket).contains(message.id) }
+        #expect(await Self.publishedIDs(on: socket).contains(message.id))
+        // The read-state send is still awaiting its OK when the message is sent.
+        #expect(try await harness.store.entry(id: background.id)?.state == .sending)
+        await socket.enqueue(EngineFrames.ok(background.id, true))
+        await socket.enqueue(EngineFrames.ok(message.id, true))
+        await harness.engine.stop()
+    }
+
+    @Test("message lane retains enqueue order")
+    func messageLanePreservesOrder() async throws {
+        let socket = ScriptedRelay()
+        let database = TempDatabase()
+        defer { database.remove() }
+        let harness = try EngineHarness(path: database.path, identity: try PrivateKey(), relays: [socket])
+        let first = try await harness.store.enqueue(content: "first", in: "room-1", with: harness.signer)
+        let second = try await harness.store.enqueue(content: "second", in: "room-1", with: harness.signer)
+        try await harness.engine.start()
+        try await driveAuth(harness.connection, socket)
+        await Self.waitUntil { await Self.publishedIDs(on: socket).contains(first.id) }
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(!(await Self.publishedIDs(on: socket).contains(second.id)))
+        await socket.enqueue(EngineFrames.ok(first.id, true))
+        await Self.waitUntil { await Self.publishedIDs(on: socket).contains(second.id) }
+        #expect(await Self.publishedIDs(on: socket).contains(second.id))
+        await socket.enqueue(EngineFrames.ok(second.id, true))
+        await harness.engine.stop()
+    }
+
+    @Test("a temporary refusal retries without a reconnect")
+    func transientRefusalRetries() async throws {
+        let socket = ScriptedRelay()
+        let database = TempDatabase()
+        defer { database.remove() }
+        let harness = try EngineHarness(path: database.path, identity: try PrivateKey(), relays: [socket])
+        let message = try await harness.store.enqueue(content: "hello", in: "room-1", with: harness.signer)
+        try await harness.engine.start()
+        try await driveAuth(harness.connection, socket)
+        await Self.waitUntil { await Self.publishedIDs(on: socket).contains(message.id) }
+        await socket.enqueue(EngineFrames.ok(message.id, false, "error: temporary problem"))
+        await Self.waitUntil {
+            await Self.publishedIDs(on: socket).filter { $0 == message.id }.count >= 2
+        }
+        #expect(await Self.publishedIDs(on: socket).filter { $0 == message.id }.count == 2)
+        await socket.enqueue(EngineFrames.ok(message.id, true))
+        await Self.waitUntil { (try? await harness.store.entry(id: message.id)) == nil }
+        #expect(try await harness.store.entry(id: message.id) == nil)
+        await harness.engine.stop()
+    }
+
     // MARK: - The send-side reconnect nudge
 
     /// A send made while the connection is backing off asks it to reopen now.

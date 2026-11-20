@@ -11,6 +11,33 @@ import Testing
 /// so most of what is pinned here is "these N events become one row saying M".
 @Suite("Activity feed", .timeLimit(.minutes(1)))
 struct ActivityFeedTests {
+    @Test("channel notifications include ordinary messages but respect mute and exclude own messages")
+    func channelNotifications() async throws {
+        let database = TempDatabase()
+        defer { database.remove() }
+        let mine = try Fixture()
+        let peer = try Fixture()
+        let relay = try Fixture()
+        let store = try await ActivityFixtures.openStore(database, identity: mine.pubkey, channels: ["room-1", "room-2"])
+        let ordinary = try ActivityFixtures.message(peer, "hello", in: "room-1", at: 2000)
+        let muted = try ActivityFixtures.message(peer, "quiet", in: "room-2", at: 2100)
+        let own = try ActivityFixtures.message(mine, "mine", in: "room-1", at: 2200)
+        _ = try await store.ingest(batch: [
+            try ActivityFixtures.meta(relay, "room-1", name: "Room", at: 500),
+            try ActivityFixtures.meta(relay, "room-2", name: "Muted", at: 500),
+            ordinary, muted, own,
+        ], phase: .backfill)
+        _ = try await store.setChannelMute("room-2", muted: true, updatedAt: 2200)
+        let entries = try store.channelNotificationEntries(selfPubkey: mine.pubkey, ids: [ordinary.id, muted.id, own.id])
+        #expect(entries.map(\.latest.id) == [ordinary.id])
+        #expect(try store.channelAlertsEnabled("room-1"))
+        try await store.setChannelAlertsEnabled("room-1", enabled: false)
+        #expect(!(try store.channelAlertsEnabled("room-1")))
+        try await store.setChannelAlertsEnabled("room-1", enabled: true)
+        #expect(try store.channelNotificationEntries(selfPubkey: mine.pubkey, ids: [ordinary.id]).count == 1)
+        #expect(try store.activityFeed(selfPubkey: mine.pubkey, limit: 50).isEmpty)
+    }
+
     // MARK: - Grouping
 
     @Test("collapses every reply in one thread into a single row carrying the count")

@@ -12,6 +12,7 @@ final class ChannelDetailsModel {
     private(set) var context = ChannelContext(description: nil, topic: nil, purpose: nil)
     /// Whether this identity has muted the channel on any device.
     private(set) var isMuted = false
+    private(set) var channelAlertsEnabled = true
     /// The shared canvas. Fetched once when the sheet opens rather than observed: it is
     /// not projected, so there is nothing local to observe. See ``ChannelCanvas``.
     private(set) var canvas: CanvasState = .loading
@@ -45,11 +46,17 @@ final class ChannelDetailsModel {
                 let context = (try? store.channelContext(channelID))
                     ?? ChannelContext(description: nil, topic: nil, purpose: nil)
                 let muted = (try? store.isChannelMuted(channelID)) ?? false
-                await apply(rows, permissions: permissions, context: context, muted: muted)
+                let alertsEnabled = (try? store.channelAlertsEnabled(channelID)) ?? true
+                await apply(rows, permissions: permissions, context: context, muted: muted, alertsEnabled: alertsEnabled)
             }
         } catch {
             // Keep the last good roster when the observation is cancelled.
         }
+    }
+
+    func setChannelAlertsEnabled(_ enabled: Bool) async throws {
+        try await store.setChannelAlertsEnabled(channelID, enabled: enabled)
+        channelAlertsEnabled = enabled
     }
 
     /// Asks the relay for the canvas. Separate from ``run()`` because it is a network
@@ -81,12 +88,14 @@ final class ChannelDetailsModel {
         _ rows: [MemberProfile],
         permissions: ChannelLifecyclePermissions,
         context: ChannelContext,
-        muted: Bool
+        muted: Bool,
+        alertsEnabled: Bool
     ) {
         members = rows
         self.permissions = permissions
         self.context = context
         isMuted = muted
+        channelAlertsEnabled = alertsEnabled
         hasLoaded = true
     }
 }

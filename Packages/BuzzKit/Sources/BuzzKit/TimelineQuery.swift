@@ -413,6 +413,7 @@ extension BuzzEventStore {
             isDeleted: row["deleted"] ?? false,
             richContent: row["rich"],
             delivery: Delivery(state: row["state"], lastError: row["last_error"]),
+            outboxState: OutboxState(rawValue: row["state"] ?? ""),
             failureIsRetryable: row["is_retryable"] ?? false,
             authorName: row["display_name"],
             authorPicture: row["picture"],

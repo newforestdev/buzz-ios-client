@@ -429,6 +429,15 @@ enum Schema {
             try createMessageSearch(db)
         }
 
+        migrator.registerMigration("v15.channel-notification-preferences") { db in
+            try db.execute(sql: """
+            CREATE TABLE channel_notification_preference (
+                channel_id TEXT PRIMARY KEY NOT NULL,
+                enabled INTEGER NOT NULL
+            )
+            """)
+        }
+
         return migrator
     }
 

@@ -42,6 +42,7 @@ final class PushNotifications {
     private(set) var registrationError: String?
     var onWake: (@MainActor @Sendable () -> Void)?
     var onToken: (@MainActor @Sendable (Data) -> Void)?
+    var onChannelAlertsChanged: (@MainActor @Sendable () async -> Void)?
 
     private init() {}
 

@@ -32,7 +32,9 @@ final class PushLeaseCoordinator {
         relayURLString: String,
         signer: any EventSigner,
         engine: SyncEngine,
-        directMessageChannelIDs: [String] = []
+        store: BuzzEventStore,
+        directMessageChannelIDs: [String] = [],
+        channelIDs: [String] = []
     ) async throws -> PushPreviewLease {
         let revision = operationRevision
         while activationInFlight || revocationInFlight {
@@ -63,7 +65,8 @@ final class PushLeaseCoordinator {
             relayPubkey: relayPubkey,
             tokenHash: tokenHash,
             pushKinds: descriptor.pushEligibleKinds,
-            dmChannelIDs: directMessageChannelIDs
+            dmChannelIDs: directMessageChannelIDs,
+            channelIDs: channelIDs
         )
         let now = Int64(Date().timeIntervalSince1970)
         if let saved = loadLease(for: stateKey),
@@ -74,6 +77,16 @@ final class PushLeaseCoordinator {
            let previewLease = saved.previewLease, previewLease.isActive(at: now) {
             return previewLease
         }
+        // Check channel ids and the relay's subscription quotas before rotating the
+        // gateway delegation. A rejected selection must not invalidate a working DM
+        // and mention registration.
+        _ = try await PushLeaseBuilder.build(
+            descriptor: descriptor, endpointGrant: "preflight", selfPubkey: pubkey,
+            generation: 1, expiresAt: now + 3600, signer: signer,
+            directMessageChannelIDs: directMessageChannelIDs, channelIDs: channelIDs,
+            d: String(repeating: "0", count: 32)
+        )
+        try check(revision)
         var installation = try await prepareInstallation(
             token: token, deliveryURL: deliveryURL, gateway: gateway, revision: revision
         )
@@ -124,7 +137,8 @@ final class PushLeaseCoordinator {
             descriptor: descriptor,
             publication: LeasePublication(stateKey: stateKey, state: leaseState,
                                           fingerprint: fingerprint, revision: revision, grant: grant),
-            signer: signer, engine: engine, directMessageChannelIDs: directMessageChannelIDs
+            signer: signer, engine: engine, store: store, directMessageChannelIDs: directMessageChannelIDs,
+            channelIDs: channelIDs
         )
     }
 
@@ -226,7 +240,8 @@ final class PushLeaseCoordinator {
 extension PushLeaseCoordinator {
     private func queueLease(
         descriptor: RelayPushDescriptor, publication: LeasePublication,
-        signer: any EventSigner, engine: SyncEngine, directMessageChannelIDs: [String]
+        signer: any EventSigner, engine: SyncEngine, store: BuzzEventStore,
+        directMessageChannelIDs: [String], channelIDs: [String]
     ) async throws -> PushPreviewLease {
         let stateKey = publication.stateKey
         let leaseState = publication.state
@@ -248,6 +263,7 @@ extension PushLeaseCoordinator {
             expiresAt: expiry,
             signer: signer,
             directMessageChannelIDs: directMessageChannelIDs,
+            channelIDs: channelIDs,
             d: leaseState.d
         )
         do {
@@ -263,12 +279,23 @@ extension PushLeaseCoordinator {
         }
         let publicationTimestamp = try await reservePublicationTimestamp(for: stateKey, revision: revision)
         try check(revision)
-        _ = try await engine.enqueueProtocolEvent(
+        let queued = try await engine.enqueueProtocolEvent(
             kind: .pushLease,
             content: lease.content,
             tags: lease.tags,
             createdAt: Date(timeIntervalSince1970: TimeInterval(publicationTimestamp))
         )
+        // A queued lease is not evidence that the relay accepted a preference.
+        // Bound the wait and surface uncertainty instead of claiming an opt-out worked.
+        let deadline = ContinuousClock.now + .seconds(10)
+        while try await store.event(id: queued.id) == nil {
+            try check(revision)
+            if let pending = try await store.entry(id: queued.id), pending.state == .failed {
+                throw PushRegistrationError.relayRefused
+            }
+            guard ContinuousClock.now < deadline else { throw PushRegistrationError.relayPending }
+            try await Task.sleep(for: .milliseconds(200))
+        }
         try check(revision)
         var publishedState = loadLease(for: stateKey) ?? leaseState
         publishedState.isActive = true
@@ -432,7 +459,8 @@ extension PushLeaseCoordinator {
         relayPubkey: String,
         tokenHash: String,
         pushKinds: [Int],
-        dmChannelIDs: [String]
+        dmChannelIDs: [String],
+        channelIDs: [String]
     ) -> String {
         let components = [
             "hive-push-lease-schema-v2", PushGatewayClient.appProfile,
@@ -440,6 +468,7 @@ extension PushLeaseCoordinator {
             relayKeyID, relayPubkey, tokenHash,
             pushKinds.sorted().map(String.init).joined(separator: ","),
             Array(Set(dmChannelIDs)).sorted().joined(separator: ","),
+            Array(Set(channelIDs)).sorted().joined(separator: ","),
         ]
         return Data(SHA256.hash(data: Data(components.joined(separator: "\n").utf8))).hexString
     }
@@ -479,7 +508,9 @@ private struct SavedLeaseState: Codable {
     var previewLease: PushPreviewLease? = nil
 }
 
-enum PushRegistrationError: Error { case unsupportedRelay, invalidDescriptor, busy, clockTooFarAhead }
+enum PushRegistrationError: Error {
+    case unsupportedRelay, invalidDescriptor, busy, clockTooFarAhead, relayRefused, relayPending
+}
 
 enum PushLeaseGeneration {
     static func next(after current: Int64) -> Int64? {

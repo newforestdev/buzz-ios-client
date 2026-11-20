@@ -6,6 +6,20 @@ import BuzzKit
 import Testing
 
 struct PushGatewayClientTests {
+    @Test func channelSelectionKeepsDMsAndOnlyEnabledJoinedChannels() {
+        func row(_ id: String, type: String? = nil, muted: Bool = false) -> ChannelListRow {
+            ChannelListRow(id: id, name: nil, about: nil, picture: nil, isPrivate: false,
+                           lastMessageAt: nil, lastMessageSnippet: nil, lastMessageAuthor: nil,
+                           channelType: type, isMuted: muted)
+        }
+        let selection = PushChannelSelection(rows: [
+            row("joined"), row("disabled"), row("muted", muted: true),
+            row("not-joined"), row("dm", type: "dm", muted: true),
+        ], joined: ["joined", "disabled", "muted"], disabled: ["disabled", "dm"])
+        #expect(selection.channels == ["joined"])
+        #expect(selection.directMessages == ["dm"])
+    }
+
     @Test func transcriptEscapingMatchesGatewayJSONWithoutEscapingSlashes() throws {
         let value = "https://push.example/\"\\\n\r\t\u{08}\u{0C}\u{01}é"
         let transcript = PushAttestationTranscript.enrollment(
@@ -170,6 +184,7 @@ struct PushGatewayClientTests {
                 "123e4567-e89b-42d3-a456-426614174001",
                 "123e4567-e89b-42d3-a456-426614174002",
             ],
+            channelIDs: ["123e4567-e89b-42d3-a456-426614174003"],
             d: String(repeating: "c", count: 32)
         )
         let plaintext = try NIP44.decrypt(
@@ -181,14 +196,14 @@ struct PushGatewayClientTests {
         #expect(payload["app_profile"] as? String == "buzz-ios-sandbox")
         #expect(payload["endpoint"] as? String == "capability:opaque")
         let subscriptions = try #require(payload["subscriptions"] as? [[String: Any]])
-        #expect(subscriptions.count == 3)
+        #expect(subscriptions.count == 4)
         let mentionFilter = try #require(subscriptions[0]["filter"] as? [String: Any])
         #expect(mentionFilter["kinds"] as? [Int] == [9, 40002, 45001, 45003])
         #expect(mentionFilter["#p"] as? [String] == [userKey.publicKey.hex])
         let mentionIgnore = try #require(subscriptions[0]["ignore"] as? [[String: Any]])
         #expect(mentionIgnore.first?["kinds"] as? [Int] == [9, 40002, 45001, 45003])
         #expect(mentionIgnore.first?["authors"] as? [String] == [userKey.publicKey.hex])
-        let dmFilters = subscriptions.dropFirst().compactMap { $0["filter"] as? [String: Any] }
+        let dmFilters = subscriptions.dropFirst().prefix(2).compactMap { $0["filter"] as? [String: Any] }
         #expect(dmFilters.count == 2)
         #expect(dmFilters.allSatisfy { $0["kinds"] as? [Int] == [9, 40002] })
         #expect(dmFilters.flatMap { $0["#h"] as? [String] ?? [] } == [
@@ -196,6 +211,9 @@ struct PushGatewayClientTests {
             "123e4567-e89b-42d3-a456-426614174001",
             "123e4567-e89b-42d3-a456-426614174002",
         ])
+        let channelFilter = try #require(subscriptions.last?["filter"] as? [String: Any])
+        #expect(channelFilter["#h"] as? [String] == ["123e4567-e89b-42d3-a456-426614174003"])
+        #expect(channelFilter["kinds"] as? [Int] == [9, 40002])
         #expect(subscriptions.dropFirst().allSatisfy {
             guard let ignore = ($0["ignore"] as? [[String: Any]])?.first else { return false }
             return ignore["kinds"] as? [Int] == [9, 40002, 45001, 45003]
@@ -206,6 +224,20 @@ struct PushGatewayClientTests {
         ) as? [[String: Any]]
         #expect(NSDictionary(dictionary: ["subscriptions": subscriptions])
             == NSDictionary(dictionary: ["subscriptions": savedSubscriptions ?? []]))
+        // A channel absent from the routine subscriptions still delivers an
+        // explicit mention, while its ordinary messages stay excluded.
+        let peer = try PrivateKey()
+        let disabledChannel = "123e4567-e89b-42d3-a456-426614174004"
+        let time = Date(timeIntervalSince1970: 1_800_000_000)
+        let normal = try NostrEvent.signed(kind: .channelMessage, content: "post",
+            tags: [["h", disabledChannel]], createdAt: time, with: peer)
+        let mention = try NostrEvent.signed(kind: .channelMessage, content: "mention",
+            tags: [["h", disabledChannel], ["p", userKey.publicKey.hex]], createdAt: time, with: peer)
+        let dm = try NostrEvent.signed(kind: .channelMessage, content: "dm",
+            tags: [["h", "123e4567-e89b-42d3-a456-426614174000"]], createdAt: time, with: peer)
+        #expect(!lease.previewLease.covers(normal))
+        #expect(lease.previewLease.covers(mention))
+        #expect(lease.previewLease.covers(dm))
         #expect(lease.previewLease.expiresAt == 1_900_000_000)
         #expect(!plaintext.contains("1059"))
         #expect(!plaintext.contains("token"))

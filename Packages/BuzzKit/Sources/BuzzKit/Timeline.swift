@@ -26,6 +26,7 @@ public struct TimelineRow: Sendable, Hashable, Identifiable {
     public let richContent: String?
     /// Where this message is on its way to the relay.
     public let delivery: Delivery
+    public let outboxState: OutboxState?
     public let failureIsRetryable: Bool
     public let authorName: String?
     public let authorPicture: String?
@@ -128,6 +129,7 @@ public struct TimelineRow: Sendable, Hashable, Identifiable {
         isDeleted: Bool,
         richContent: String?,
         delivery: Delivery,
+        outboxState: OutboxState? = nil,
         failureIsRetryable: Bool = false,
         authorName: String?,
         authorPicture: String?,
@@ -150,6 +152,7 @@ public struct TimelineRow: Sendable, Hashable, Identifiable {
         self.isDeleted = isDeleted
         self.richContent = richContent
         self.delivery = delivery
+        self.outboxState = outboxState
         self.failureIsRetryable = failureIsRetryable
         self.authorName = authorName
         self.authorPicture = authorPicture

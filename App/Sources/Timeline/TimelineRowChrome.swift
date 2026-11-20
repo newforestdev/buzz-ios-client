@@ -129,6 +129,7 @@ struct SendingStrip: View {
     /// 1 invites them to watch it rather than the conversation.
     let uploaded: Int
     let total: Int
+    var status: String = "Sending…"
 
     private var progress: String? {
         guard total > 1 else { return nil }
@@ -139,7 +140,7 @@ struct SendingStrip: View {
         HStack(spacing: 6) {
             ProgressView()
                 .controlSize(.mini)
-            Text(progress.map { "Sending… \($0)" } ?? "Sending…")
+            Text(progress.map { "\(status) \($0)" } ?? status)
                 .font(.hive(.caption))
                 // The count changes width as it climbs; without this the spinner beside
                 // it steps sideways on every picture that lands.
@@ -149,7 +150,7 @@ struct SendingStrip: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             progress == nil
-                ? "Sending"
+                ? status
                 : "Sending, \(uploaded) of \(total) pictures uploaded"
         )
     }

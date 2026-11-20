@@ -1,5 +1,6 @@
 import Foundation
 import NostrCore
+import OSLog
 
 /// The outbox drain: sending queued messages, mapping the relay's verdict through
 /// the store's disposition policy, and the coalescing that keeps overlapping drain
@@ -125,32 +126,38 @@ extension SyncEngine {
     /// discipline stops two passes from double-sending a row, while the re-run
     /// guarantees a request that arrived mid-drain (a fresh `.ready`) is still
     /// served.
+    private static let outboxLog = Logger(subsystem: "Steelbeach", category: "Outbox")
+
     func requestDrain(generation: Int) async {
-        guard !drainInFlight else {
-            drainPending = true
-            return
-        }
-        drainInFlight = true
-        defer { drainInFlight = false }
-        repeat {
-            drainPending = false
-            await performDrain(generation: readyGeneration)
-        } while drainPending && state == .running && !isStopped
+        // Read-state snapshots are independent of messages and related actions. Keep
+        // every other event in one ordered lane (including reactions and withdrawals).
+        async let messages: Void = drainLane(readState: false)
+        async let readState: Void = drainLane(readState: true)
+        _ = await (messages, readState)
         _ = generation
     }
 
-    /// Sends every drainable row oldest-first: `pending`, `sending` (outcome
-    /// unknown, resent because the relay dedupes by id), and `awaitingReauth`
-    /// (resent once the connection re-authenticates and returns to `.ready`).
-    /// `awaitingMedia` remains held for its upload pump; `failed` remains held for
-    /// an explicit retry.
-    private func performDrain(generation: Int) async {
-        guard state == .running, !isStopped else { return }
-        let entries = (try? await store.pendingSends()) ?? []
-        for entry in entries {
-            guard generation == readyGeneration, state == .running, !isStopped else { return }
-            await send(entry)
+    private func drainLane(readState: Bool) async {
+        guard !drainInFlight.contains(readState) else {
+            drainPending.insert(readState)
+            return
         }
+        drainInFlight.insert(readState)
+        defer { drainInFlight.remove(readState) }
+        repeat {
+            drainPending.remove(readState)
+            let generation = readyGeneration
+            let entries = (try? await store.pendingSends()) ?? []
+            for entry in entries where (entry.event.kind == .readState) == readState {
+                guard generation == readyGeneration, state == .running, !isStopped else { return }
+                if let retryAfter = outboxRetryAfter[entry.id], retryAfter > Date() {
+                    break // Preserve order within this lane during retry backoff.
+                }
+                outboxRetryAfter.removeValue(forKey: entry.id)
+                await send(entry)
+                if outboxRetryAfter[entry.id] != nil { break }
+            }
+        } while drainPending.contains(readState) && state == .running && !isStopped
     }
 
     // MARK: - One send
@@ -160,19 +167,51 @@ extension SyncEngine {
     /// it into the log; a rejection routes through the store's disposition policy; a
     /// connection loss leaves it `sending` for the next drain.
     private func send(_ entry: OutboxEntry) async {
+        let started = Date()
+        let queueAge = max(0, started.timeIntervalSince1970 - Double(entry.event.createdAt))
+        Self.outboxLog.info("Publish started kind=\(entry.event.kind.rawValue) queueAgeSeconds=\(queueAge, format: .fixed(precision: 1)) attempt=\(entry.attempts + 1)")
         do {
             try await store.markSending(entry.event.id)
             try await connection.publish(entry.event)
-            try await store.confirmSent(entry.event)
+            let acknowledged = Date()
+            do {
+                try await store.confirmSent(entry.event)
+            } catch {
+                Self.outboxLog.error("Confirmation save failed kind=\(entry.event.kind.rawValue)")
+                try? await store.markFailed(entry.event.id, error: "The server received this, but Steelbeach couldn't save the confirmation.", retryable: true)
+                return
+            }
+            let ackSeconds = acknowledged.timeIntervalSince(started)
+            let saveSeconds = Date().timeIntervalSince(acknowledged)
+            Self.outboxLog.info("Publish confirmed kind=\(entry.event.kind.rawValue) ackSeconds=\(ackSeconds, format: .fixed(precision: 2)) saveSeconds=\(saveSeconds, format: .fixed(precision: 2))")
             // After the confirm and not before it: a subscriber is told the send landed,
             // which is only true once the row has moved into the log.
             publishSentConfirmation(entry.event)
         } catch let error as RelayConnectionError {
+            Self.outboxLog.warning("Publish failed kind=\(entry.event.kind.rawValue) elapsedSeconds=\(Date().timeIntervalSince(started), format: .fixed(precision: 2)) error=\(String(describing: error), privacy: .private)")
             await handlePublishFailure(error, entry: entry)
         } catch {
-            // A store-side failure (mark/confirm) leaves the row where it is; the
-            // relay dedupes, so the next drain resends and confirms safely.
+            Self.outboxLog.error("Outbox state update failed kind=\(entry.event.kind.rawValue)")
+            try? await store.markFailed(entry.event.id, error: "Steelbeach couldn't prepare this message to send.", retryable: true)
         }
+    }
+
+    private func scheduleOutboxRetry(_ id: String, reason: OKReason, attempts: Int) {
+        let delay = max(1, reason.retryAfterSeconds ?? min(30, 1 << min(attempts - 1, 5)))
+        let deadline = Date().addingTimeInterval(TimeInterval(delay))
+        outboxRetryAfter[id] = deadline
+        Self.outboxLog.notice("Transient refusal; retry scheduled in \(delay) seconds")
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            await self?.retryAfterBackoff(id, deadline: deadline)
+        }
+    }
+
+    private func retryAfterBackoff(_ id: String, deadline: Date) async {
+        guard outboxRetryAfter[id] == deadline else { return }
+        outboxRetryAfter.removeValue(forKey: id)
+        guard !isStopped else { return }
+        await drainOutbox()
     }
 
     /// Maps a publish failure onto the outbox.
@@ -188,15 +227,17 @@ extension SyncEngine {
                     await send(fresh)
                 }
             }
+            if case let .retrying(attempts)? = resolution {
+                scheduleOutboxRetry(entry.id, reason: reason, attempts: attempts)
+            }
             if case .failed? = resolution {
                 // A terminal write refusal is often the first signal that an
                 // already-open screen lost access. Reconcile its directory state
                 // promptly so the UI becomes read-only.
                 requestDirectoryRefresh()
             }
-            // .confirmed / .awaitingReauth / .failed / .exhausted / .retrying are
-            // already recorded by the store; the timing (redrain, re-auth) is the
-            // engine's, and a fresh `.ready` drives it.
+            // The store records the result. Transient refusals also get a scheduled
+            // retry; they must not wait indefinitely for an unrelated reconnect.
 
         case .connectionLost, .timedOut:
             // Outcome unknown: the row stays `sending` and the next drain resends it.
@@ -215,10 +256,21 @@ extension SyncEngine {
             // id. The row stays `sending` and the next drain resends it.
             break
 
-        case .authenticationFailed, .authenticationRejected, .subscriptionClosed:
-            // Not reachable from a publish, but exhaustively handled rather than
-            // silently defaulted.
-            break
+        case let .authenticationFailed(message), let .authenticationRejected(message):
+            // `publish` waits for NIP-42 authentication before writing the EVENT.
+            // A rejected handshake therefore reaches this path without an event
+            // verdict. Leaving the row as `sending` makes it look in flight forever;
+            // retain it as an explicit, retryable failure instead.
+            try? await store.markFailed(entry.event.id, error: message, retryable: true)
+
+        case .subscriptionClosed:
+            // Publish does not open a subscription. Keep this exhaustive in case a
+            // future connection implementation routes one through the send path.
+            try? await store.markFailed(
+                entry.event.id,
+                error: "The relay closed the message subscription.",
+                retryable: true
+            )
         }
     }
 }

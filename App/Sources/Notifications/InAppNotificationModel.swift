@@ -65,7 +65,12 @@ final class InAppNotificationModel {
                 selfPubkey: selfPubkey,
                 limit: Self.feedLimit
             )) ?? []
-            await apply(feed, insertedEventIDs: Set(eventIDs))
+            let channelEntries = (try? store.channelNotificationEntries(
+                selfPubkey: selfPubkey, ids: eventIDs
+            )) ?? []
+            let channelIDs = Set(channelEntries.map { $0.latest.id })
+            await apply(channelEntries + feed.filter { !channelIDs.contains($0.latest.id) },
+                        insertedEventIDs: Set(eventIDs))
         }
     }
 
@@ -111,6 +116,10 @@ final class InAppNotificationModel {
         for entry in feed where insertedEventIDs.contains(entry.latest.id) {
             consideredEntry = true
             let notification = InAppNotification(entry: entry)
+            if let channelID = entry.channelID,
+               !notification.allowsAlert(channelAlertsEnabled: (try? store.channelAlertsEnabled(channelID)) ?? true) {
+                continue
+            }
             let isVisible = notification.location.isVisible(in: activeLocation)
             let verdict = "id=\(notification.id) unreadCount=\(entry.unreadCount) " +
                 "qualifies=\(notification.qualifies) isVisible=\(isVisible)"

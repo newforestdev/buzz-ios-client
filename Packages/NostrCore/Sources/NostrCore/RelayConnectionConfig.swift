@@ -71,7 +71,7 @@ public struct RelayConnectionConfig: Sendable {
         foregroundHandshakeDeadline: Duration = .seconds(3),
         authTimeout: Duration = .seconds(30),
         queryTimeout: Duration = .seconds(15),
-        publishTimeout: Duration = .seconds(15)
+        publishTimeout: Duration = .seconds(8)
     ) {
         self.reconnectPolicy = reconnectPolicy
         self.backgroundGrace = backgroundGrace

@@ -22,6 +22,7 @@ enum PushLeaseBuilder {
         expiresAt: Int64,
         signer: any EventSigner,
         directMessageChannelIDs: [String] = [],
+        channelIDs: [String] = [],
         d: String? = nil
     ) async throws -> Lease {
         guard let key = descriptor.currentKey,
@@ -40,6 +41,9 @@ enum PushLeaseBuilder {
         let ignoreSelf = [Filter(authors: [selfPubkey], kinds: kinds)]
         guard directMessageChannelIDs.allSatisfy(Self.isCanonicalUUIDv4) else {
             throw PushLeaseError.invalidDirectMessageChannel
+        }
+        guard channelIDs.allSatisfy(Self.isCanonicalUUIDv4) else {
+            throw PushLeaseError.invalidChannel
         }
         var subscriptions = [
             PushLeaseSubscription(
@@ -67,8 +71,23 @@ enum PushLeaseBuilder {
                 )
             }
         }
+        // This selector is only used once the relay supports the channel alert
+        // cooldown. Activating it against an ordinary relay would alert for every post.
+        let channels = Array(Set(channelIDs).subtracting(dmChannels)).sorted()
+        let channelKinds = [9, 40_002].filter(supportedKinds.contains)
+        if !channels.isEmpty, !channelKinds.isEmpty {
+            guard descriptor.maxChannelIDs > 0 else { throw PushLeaseError.tooManyChannels }
+            for start in stride(from: 0, to: channels.count, by: descriptor.maxChannelIDs) {
+                let end = min(start + descriptor.maxChannelIDs, channels.count)
+                subscriptions.append(PushLeaseSubscription(
+                    filter: Filter(kinds: channelKinds.map { EventKind(rawValue: $0) },
+                                   tagQueries: ["h": Array(channels[start..<end])]),
+                    ignore: ignoreSelf
+                ))
+            }
+        }
         guard subscriptions.count <= descriptor.maxSubscriptions else {
-            throw PushLeaseError.tooManyDirectMessageChannels
+            throw channelIDs.isEmpty ? PushLeaseError.tooManyDirectMessageChannels : PushLeaseError.tooManyChannels
         }
 
         let payload = LeasePayload(
@@ -119,7 +138,9 @@ enum PushLeaseBuilder {
     }
 }
 
-enum PushLeaseError: Error, Equatable { case invalidInput, invalidDirectMessageChannel, tooManyDirectMessageChannels }
+enum PushLeaseError: Error, Equatable {
+    case invalidInput, invalidDirectMessageChannel, tooManyDirectMessageChannels, invalidChannel, tooManyChannels
+}
 
 private struct LeasePayload: Encodable {
     let v: Int

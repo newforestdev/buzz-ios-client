@@ -202,6 +202,26 @@ private extension ChannelDetailsView {
     @ViewBuilder
     var channelSections: some View {
         muteSection
+        Section {
+            Toggle("Channel message alerts", isOn: Binding(
+                get: { model.channelAlertsEnabled },
+                set: { enabled in
+                    Task {
+                        do {
+                            try await model.setChannelAlertsEnabled(enabled)
+                            await PushNotifications.shared.onChannelAlertsChanged?()
+                            if let error = PushNotifications.shared.registrationError {
+                                operationError = "\(error) Channel alerts may continue until the relay is updated."
+                            }
+                        }
+                        catch { operationError = "Couldn’t update channel alerts." }
+                    }
+                }
+            ))
+            Text("Mentions still notify you. This preference applies on this device.")
+                .font(.hive(.caption))
+                .foregroundStyle(.secondary)
+        }
 
         Section("Context") {
             contextRow("Description", model.context.description)

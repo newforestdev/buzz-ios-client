@@ -14,13 +14,14 @@ struct InAppNotificationRouteTests {
         channelID: String? = "channel-1",
         isDirectMessage: Bool = false,
         rootID: String? = nil,
+        categories: [ActivityCategory] = [.mention],
         messageID: String = "message-1",
         createdAt: Int64 = 1_786_311_600
     ) -> ActivityEntry {
         ActivityEntry(
             id: rootID ?? messageID,
             category: .mention,
-            categories: [.mention],
+            categories: categories,
             channelID: channelID,
             channelName: "ios-development",
             isDirectMessage: isDirectMessage,
@@ -37,6 +38,17 @@ struct InAppNotificationRouteTests {
             unreadCount: 1,
             rootID: rootID
         )
+    }
+
+    @Test("disabling routine channel alerts keeps mentions and DMs")
+    func channelAlertPreferenceKeepsMentionsAndDMs() {
+        let routine = InAppNotification(entry: Self.entry(categories: [.activity]))
+        let mention = InAppNotification(entry: Self.entry(categories: [.mention]))
+        let dm = InAppNotification(entry: Self.entry(isDirectMessage: true, categories: [.activity]))
+        #expect(!routine.allowsAlert(channelAlertsEnabled: false))
+        #expect(mention.allowsAlert(channelAlertsEnabled: false))
+        #expect(dm.allowsAlert(channelAlertsEnabled: false))
+        #expect(routine.allowsAlert(channelAlertsEnabled: true))
     }
 
     @Test("a reply goes to its thread")

@@ -11,6 +11,30 @@ import GRDB
 /// ``applyChannelMutes(_:sourceCreatedAt:sourceEventID:)``; the store never touches
 /// the secret.
 public extension BuzzEventStore {
+    /// The per-device preference for routine channel-message alerts. Mentions
+    /// and direct messages use separate paths and remain enabled.
+    nonisolated func channelAlertsEnabled(_ channel: String) throws -> Bool {
+        try reader.read { db in
+            try Bool.fetchOne(db, sql: "SELECT enabled FROM channel_notification_preference WHERE channel_id = ?",
+                              arguments: [channel]) ?? true
+        }
+    }
+
+    nonisolated func disabledChannelAlertIDs() throws -> Set<String> {
+        try reader.read { db in
+            Set(try String.fetchAll(db, sql: "SELECT channel_id FROM channel_notification_preference WHERE enabled = 0"))
+        }
+    }
+
+    func setChannelAlertsEnabled(_ channel: String, enabled: Bool) async throws {
+        try await writer.write { db in
+            try db.execute(sql: """
+                INSERT INTO channel_notification_preference (channel_id, enabled) VALUES (?, ?)
+                ON CONFLICT(channel_id) DO UPDATE SET enabled = excluded.enabled
+                """, arguments: [channel, enabled])
+        }
+    }
+
     /// Every channel id currently muted. The set the sidebar asks for — the unmuted
     /// records stay in the table, because an unmute is a record and not an absence.
     nonisolated func mutedChannelIDs() throws -> Set<String> {

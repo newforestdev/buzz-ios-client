@@ -273,8 +273,9 @@ public actor SyncEngine {
     /// Together they coalesce overlapping drain requests into a single in-flight
     /// drain that re-runs once more if anything asked during it — so a `.ready`
     /// that lands mid-drain never strands a row until the next reconnect.
-    var drainInFlight = false
-    var drainPending = false
+    var drainInFlight: Set<Bool> = []
+    var drainPending: Set<Bool> = []
+    var outboxRetryAfter: [String: Date] = [:]
 
     /// When a send last asked the connection to reopen, so a run of sends cannot
     /// restart the handshake faster than it can complete. See

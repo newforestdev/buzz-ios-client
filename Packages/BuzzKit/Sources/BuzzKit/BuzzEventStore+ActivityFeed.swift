@@ -34,6 +34,15 @@ public extension BuzzEventStore {
             try ActivityFeedRead.fetch(db, selfPubkey: identity, limit: limit)
         }
     }
+
+    /// Live channel-message candidates for foreground banners, without broadening
+    /// the Activity tab. Only newly inserted ids are read; muted channels are silent.
+    nonisolated func channelNotificationEntries(selfPubkey: String?, ids: [String]) throws -> [ActivityEntry] {
+        guard let selfPubkey, !selfPubkey.isEmpty, !ids.isEmpty else { return [] }
+        return try reader.read { db in
+            try ActivityFeedRead.fetchChannelNotifications(db, selfPubkey: selfPubkey.lowercased(), ids: ids)
+        }
+    }
 }
 
 /// The activity read: one SQL pass that selects and classifies candidate events, then a
@@ -204,6 +213,15 @@ enum ActivityFeedRead {
     COALESCE((SELECT MAX(created_at) FROM event WHERE kind IN (\(kindList))), 0) - \(window)
     """
 
+    private static let attentionPredicate = """
+    AND (
+          names_me.value IS NOT NULL
+       OR c.channel_type = 'dm'
+       OR rootev.pubkey = :selfPubkey
+       OR EXISTS (SELECT 1 FROM participant WHERE participant.root_id = t.root_id)
+    )
+    """
+
     static let candidateSQL = """
     WITH \(participantCTE)
     SELECT e.id             AS id,
@@ -244,12 +262,7 @@ enum ActivityFeedRead {
       AND NOT \(BuzzEventStore.deletionApplies(
           target: "e.id", author: "e.pubkey", owner: "eo.owner_pubkey"
       ))
-      AND (
-            names_me.value IS NOT NULL
-         OR c.channel_type = 'dm'
-         OR rootev.pubkey = :selfPubkey
-         OR EXISTS (SELECT 1 FROM participant WHERE participant.root_id = t.root_id)
-      )
+      \(attentionPredicate)
     ORDER BY e.created_at DESC, e.id DESC
     LIMIT :scan
     """
@@ -360,6 +373,21 @@ enum ActivityFeedRead {
     /// to the SQL's (`created_at DESC, id DESC`), which matters for two events written in
     /// the same second.
     ///
+    static func fetchChannelNotifications(_ db: Database, selfPubkey: String, ids: [String]) throws -> [ActivityEntry] {
+        let placeholders = ids.indices.map { ":notification\($0)" }.joined(separator: ", ")
+        let selection = """
+        AND e.kind = 9 AND e.id IN (\(placeholders))
+        AND NOT EXISTS (SELECT 1 FROM channel_mute cm WHERE cm.channel_id = e.h AND cm.muted = 1)
+        """
+        let sql = candidateSQL.replacingOccurrences(of: attentionPredicate, with: selection)
+        // Fail closed if a future activity-query edit changes the predicate.
+        guard sql != candidateSQL else { return [] }
+        var args: [String: (any DatabaseValueConvertible)?] = ["selfPubkey": selfPubkey, "scan": ids.count]
+        for (index, id) in ids.enumerated() { args["notification\(index)"] = id }
+        let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(args))
+        return group(rows.map(Candidate.init), limit: ids.count)
+    }
+
     /// Newest-first as the representative is where this departs from desktop, which takes
     /// the oldest *unread* one instead. The argument is on ``ActivityEntry/latest``.
     static func group(_ candidates: [Candidate], limit: Int) -> [ActivityEntry] {
