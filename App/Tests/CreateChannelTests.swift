@@ -123,7 +123,7 @@ struct CreateChannelTests {
         )
         #expect(
             CreateChannelModel.message(for: ChannelCreationError.rejected(.rateLimited("slow down")))
-                == "Too many channels too quickly. Try again in a moment."
+                == "The relay is busy: slow down"
         )
         #expect(
             CreateChannelModel.message(for: ChannelCreationError.rejected(.invalid("bad name")))

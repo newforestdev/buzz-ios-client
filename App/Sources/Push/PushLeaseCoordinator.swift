@@ -44,11 +44,7 @@ final class PushLeaseCoordinator {
         try check(revision)
         activationInFlight = true
         defer { activationInFlight = false }
-        guard let infoClient = RelayInfoClient(relayURLString: relayURLString, transport: transport),
-              let descriptor = try await infoClient.fetch().push,
-              descriptor.supportsAppProfile(PushGatewayClient.appProfile),
-              let deliveryString = descriptor.endpoint ?? Bundle.main.object(forInfoDictionaryKey: "HivePushGatewayURL") as? String,
-              let deliveryURL = URL(string: deliveryString),
+        guard let (descriptor, deliveryURL) = try await Self.pushConfiguration(for: relayURLString),
               let gateway = PushGatewayClient(deliveryURL: deliveryURL, transport: transport)
         else { throw PushRegistrationError.unsupportedRelay }
         try check(revision)
@@ -140,6 +136,18 @@ final class PushLeaseCoordinator {
             signer: signer, engine: engine, store: store, directMessageChannelIDs: directMessageChannelIDs,
             channelIDs: channelIDs
         )
+    }
+
+    static func pushConfiguration(for relayURLString: String) async throws -> (RelayPushDescriptor, URL)? {
+        let transport = URLSessionHTTPTransport()
+        guard let client = RelayInfoClient(relayURLString: relayURLString, transport: transport),
+              let descriptor = try await client.fetch().push,
+              descriptor.supportsAppProfile(PushGatewayClient.appProfile),
+              let deliveryString = descriptor.endpoint ?? Bundle.main.object(forInfoDictionaryKey: "HivePushGatewayURL") as? String,
+              let deliveryURL = URL(string: deliveryString),
+              PushGatewayClient(deliveryURL: deliveryURL, transport: transport) != nil
+        else { return nil }
+        return (descriptor, deliveryURL)
     }
 
     private func prepareInstallation(

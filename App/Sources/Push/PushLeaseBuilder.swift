@@ -39,10 +39,11 @@ enum PushLeaseBuilder {
         guard !supportedKinds.isEmpty, supportedKinds.count <= 16 else { throw PushLeaseError.invalidInput }
         let kinds = supportedKinds.map { EventKind(rawValue: $0) }
         let ignoreSelf = [Filter(authors: [selfPubkey], kinds: kinds)]
-        guard directMessageChannelIDs.allSatisfy(Self.isCanonicalUUIDv4) else {
+        let validChannelID: (String) -> Bool = { isSupportedChannelID($0, grammar: descriptor.hGrammar) }
+        guard directMessageChannelIDs.allSatisfy(validChannelID) else {
             throw PushLeaseError.invalidDirectMessageChannel
         }
-        guard channelIDs.allSatisfy(Self.isCanonicalUUIDv4) else {
+        guard channelIDs.allSatisfy(validChannelID) else {
             throw PushLeaseError.invalidChannel
         }
         var subscriptions = [
@@ -71,8 +72,6 @@ enum PushLeaseBuilder {
                 )
             }
         }
-        // This selector is only used once the relay supports the channel alert
-        // cooldown. Activating it against an ordinary relay would alert for every post.
         let channels = Array(Set(channelIDs).subtracting(dmChannels)).sorted()
         let channelKinds = [9, 40_002].filter(supportedKinds.contains)
         if !channels.isEmpty, !channelKinds.isEmpty {
@@ -129,12 +128,14 @@ enum PushLeaseBuilder {
         return bytes.map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func isCanonicalUUIDv4(_ value: String) -> Bool {
+    private static func isSupportedChannelID(_ value: String, grammar: String?) -> Bool {
         guard let uuid = UUID(uuidString: value) else { return false }
         let canonical = uuid.uuidString.lowercased()
         guard value == canonical else { return false }
         let chars = Array(value)
-        return chars.count == 36 && chars[14] == "4" && ["8", "9", "a", "b"].contains(chars[19])
+        guard chars.count == 36, ["8", "9", "a", "b"].contains(chars[19]) else { return false }
+        if chars[14] == "4" { return true }
+        return chars[14] == "5" && grammar == "uuid-v4-or-v5-lowercase"
     }
 }
 

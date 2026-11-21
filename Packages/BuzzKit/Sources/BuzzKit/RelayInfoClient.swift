@@ -207,12 +207,14 @@ public struct RelayPushDescriptor: Decodable, Equatable, Sendable {
     public let keys: [Key]
     public let appProfiles: [AppProfile]
     public let pushKinds: [Int]?
+    public let hGrammar: String?
     public let limitations: Limitations?
 
     enum CodingKeys: String, CodingKey {
         case origin, endpoint, keys
         case appProfiles = "app_profiles"
         case pushKinds = "push_kinds"
+        case hGrammar = "h_grammar"
         case limitations = "limitation"
     }
 

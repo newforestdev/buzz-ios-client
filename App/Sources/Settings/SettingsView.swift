@@ -29,6 +29,7 @@ struct SettingsView: View {
     /// them. `nil` until the first read, so the card does not accuse the reader of having
     /// refused something during the frame before the answer arrives.
     @State private var systemAuthorization: Bool?
+    @State private var pushRelayURL: String?
     /// A view-owned copy exists solely so status insertion/removal is animated at the card.
     @State private var siriIndexingState: IndexingState = .idle
     #if DEBUG
@@ -63,6 +64,13 @@ struct SettingsView: View {
                 }
             }
             .task { await readSystemAuthorization() }
+            .task(id: environment.communities.active?.relayURLString) {
+                pushRelayURL = nil
+                guard let relayURL = environment.communities.active?.relayURLString else { return }
+                let configuration = try? await PushLeaseCoordinator.pushConfiguration(for: relayURL)
+                guard !Task.isCancelled else { return }
+                if configuration != nil { pushRelayURL = relayURL }
+            }
             .onChange(of: environment.conversationEntityIndex.state, initial: true) { _, state in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     siriIndexingState = state
@@ -166,34 +174,36 @@ struct SettingsView: View {
                     .font(.hive(.body))
                     .tint(.blue)
             }
-            Divider()
-            AccountFieldRow(label: "RELAY WAKEUPS") {
-                Toggle("Wake for new messages", isOn: pushNotificationsBinding)
-                    .font(.hive(.body))
-                    .tint(.blue)
-                    .disabled(!environment.settings.notificationsEnabled)
-            }
-            Text("Alerts for channel messages, mentions and direct messages. Manage channel alerts in channel details.")
-                .font(.hive(.footnote))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            if let error = PushNotifications.shared.registrationError {
-                Label(error, systemImage: "exclamationmark.triangle")
+            if let relayURL = environment.communities.active?.relayURLString, pushRelayURL == relayURL {
+                Divider()
+                AccountFieldRow(label: "RELAY WAKEUPS") {
+                    Toggle("Wake for new messages", isOn: pushNotificationsBinding)
+                        .font(.hive(.body))
+                        .tint(.blue)
+                        .disabled(!environment.settings.notificationsEnabled)
+                }
+                Text("Alerts for channel messages, mentions and direct messages. Manage channel alerts in channel details.")
                     .font(.hive(.footnote))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 16)
-                AccountFieldRow(label: "") {
-                    Button("Try again") {
-                        guard let token = PushNotifications.shared.deviceToken else {
-                            PushNotifications.shared.registerForRemoteNotifications()
-                            return
+                    .padding(.vertical, 8)
+                if let error = PushNotifications.shared.registrationError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.hive(.footnote))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 16)
+                    AccountFieldRow(label: "") {
+                        Button("Try again") {
+                            guard let token = PushNotifications.shared.deviceToken else {
+                                PushNotifications.shared.registerForRemoteNotifications()
+                                return
+                            }
+                            Task { await environment.registerPushToken(token) }
                         }
-                        Task { await environment.registerPushToken(token) }
+                        .font(.hive(.footnote, weight: .medium))
+                        .foregroundStyle(.hiveAccent)
                     }
-                    .font(.hive(.footnote, weight: .medium))
-                    .foregroundStyle(.hiveAccent)
                 }
             }
             // Only when iOS is going to ignore the switch above. Without it the screen lies:

@@ -96,8 +96,8 @@ final class CreateChannelModel {
         switch reason {
         case .restricted:
             "This workspace did not allow you to create a channel."
-        case .rateLimited:
-            "Too many channels too quickly. Try again in a moment."
+        case let .rateLimited(message):
+            message.isEmpty ? "The relay is busy. Try again in a moment." : "The relay is busy: \(message)"
         case let .invalid(message):
             "The relay refused that: \(message)"
         case let .duplicate(message), let .pow(message), let .authRequired(message),

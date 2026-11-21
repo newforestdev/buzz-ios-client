@@ -6,6 +6,36 @@ import BuzzKit
 import Testing
 
 struct PushGatewayClientTests {
+    @Test func versionFiveChannelsRequireRelayGrammarSupport() async throws {
+        let user = try PrivateKey()
+        let executor = try PrivateKey()
+        let channel = "123e4567-e89b-52d3-a456-426614174000"
+        func descriptor(_ grammar: String) throws -> RelayPushDescriptor {
+            let json = """
+            {"origin":"wss://relay.example","keys":[{"id":"key","pubkey":"\(executor.publicKey.hex)","current":true}],
+             "app_profiles":[{"id":"buzz-ios-sandbox","transport":"apns"}],"push_kinds":[9],
+             "h_grammar":"\(grammar)"}
+            """
+            return try JSONDecoder().decode(RelayPushDescriptor.self, from: Data(json.utf8))
+        }
+        let signer = InMemorySigner(user)
+        let legacy = try descriptor("uuid-v4-lowercase")
+        await #expect(throws: PushLeaseError.invalidChannel) {
+            _ = try await PushLeaseBuilder.build(descriptor: legacy, endpointGrant: "grant",
+                selfPubkey: user.publicKey.hex, generation: 1, expiresAt: 1_900_000_000,
+                signer: signer, channelIDs: [channel], d: "test")
+        }
+        let updated = try descriptor("uuid-v4-or-v5-lowercase")
+        let lease = try await PushLeaseBuilder.build(descriptor: updated, endpointGrant: "grant",
+            selfPubkey: user.publicKey.hex, generation: 1, expiresAt: 1_900_000_000,
+            signer: signer, channelIDs: [channel], d: "test")
+        let plaintext = try NIP44.decrypt(lease.content,
+            conversationKey: NIP44.conversationKey(privateKey: executor, peer: user.publicKey))
+        let payload = try #require(JSONSerialization.jsonObject(with: Data(plaintext.utf8)) as? [String: Any])
+        let subscriptions = try #require(payload["subscriptions"] as? [[String: Any]])
+        let filter = try #require(subscriptions.last?["filter"] as? [String: Any])
+        #expect(filter["#h"] as? [String] == [channel])
+    }
     @Test func channelSelectionKeepsDMsAndOnlyEnabledJoinedChannels() {
         func row(_ id: String, type: String? = nil, muted: Bool = false) -> ChannelListRow {
             ChannelListRow(id: id, name: nil, about: nil, picture: nil, isPrivate: false,
